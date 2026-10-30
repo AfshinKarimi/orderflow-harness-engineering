@@ -1,0 +1,8 @@
+ok   PASSED  (expected PASSED      ) T03OrderLimitsGuardIT.twentyLinesAreAccepted
+ok   PASSED  (expected PASSED      ) T03OrderLimitsGuardIT.totalOfExactlyTenThousandIsAccepted
+ok   PASSED  (expected PASSED      ) T03OrderLimitsGuardIT.scaleOfTheAmountDoesNotMatter
+ok   FAILED  (expected FAILED/ERROR) T03OrderLimitsOracleIT.totalAboveTenThousandIsRejected
+ok   FAILED  (expected FAILED/ERROR) T03OrderLimitsOracleIT.limitsApplyOutsideTheRestApi
+ok   FAILED  (expected FAILED/ERROR) T03OrderLimitsOracleIT.twentyOneLinesAreRejected
+
+base: 6 task oracle tests, 6 test cases in total, 0 problem(s)

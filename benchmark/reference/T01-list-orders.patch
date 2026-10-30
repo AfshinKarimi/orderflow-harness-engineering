@@ -1,0 +1,426 @@
+diff --git a/src/main/java/com/orderflow/order/adapter/in/web/OrderController.java b/src/main/java/com/orderflow/order/adapter/in/web/OrderController.java
+index 077fb4b..d11584e 100644
+--- a/src/main/java/com/orderflow/order/adapter/in/web/OrderController.java
++++ b/src/main/java/com/orderflow/order/adapter/in/web/OrderController.java
+@@ -2,14 +2,21 @@ package com.orderflow.order.adapter.in.web;
+ 
+ import com.orderflow.order.application.port.in.CreateOrderUseCase;
+ import com.orderflow.order.application.port.in.GetOrderUseCase;
++import com.orderflow.order.application.port.in.ListOrdersUseCase;
++import com.orderflow.order.application.port.in.ListOrdersUseCase.ListOrdersQuery;
+ import com.orderflow.order.application.port.in.OrderResult;
+ import jakarta.validation.Valid;
++import jakarta.validation.constraints.Max;
++import jakarta.validation.constraints.Min;
++import jakarta.validation.constraints.NotBlank;
++import jakarta.validation.constraints.Size;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.web.bind.annotation.GetMapping;
+ import org.springframework.web.bind.annotation.PathVariable;
+ import org.springframework.web.bind.annotation.PostMapping;
+ import org.springframework.web.bind.annotation.RequestBody;
+ import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RequestParam;
+ import org.springframework.web.bind.annotation.RestController;
+ 
+ import java.net.URI;
+@@ -23,10 +30,13 @@ class OrderController {
+ 
+     private final CreateOrderUseCase createOrderUseCase;
+     private final GetOrderUseCase getOrderUseCase;
++    private final ListOrdersUseCase listOrdersUseCase;
+ 
+-    OrderController(CreateOrderUseCase createOrderUseCase, GetOrderUseCase getOrderUseCase) {
++    OrderController(CreateOrderUseCase createOrderUseCase, GetOrderUseCase getOrderUseCase,
++                    ListOrdersUseCase listOrdersUseCase) {
+         this.createOrderUseCase = createOrderUseCase;
+         this.getOrderUseCase = getOrderUseCase;
++        this.listOrdersUseCase = listOrdersUseCase;
+     }
+ 
+     @PostMapping
+@@ -36,6 +46,14 @@ class OrderController {
+                 .body(OrderResponse.from(result));
+     }
+ 
++    /** Invalid or missing parameters are answered with 400 problem responses by Spring's method validation. */
++    @GetMapping
++    OrderPageResponse list(@RequestParam @NotBlank @Size(max = 100) String customerId,
++                           @RequestParam(defaultValue = "0") @Min(0) int page,
++                           @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
++        return OrderPageResponse.from(listOrdersUseCase.list(new ListOrdersQuery(customerId, page, size)));
++    }
++
+     @GetMapping("/{orderId}")
+     OrderResponse get(@PathVariable UUID orderId) {
+         return OrderResponse.from(getOrderUseCase.get(orderId));
+diff --git a/src/main/java/com/orderflow/order/adapter/in/web/OrderPageResponse.java b/src/main/java/com/orderflow/order/adapter/in/web/OrderPageResponse.java
+new file mode 100644
+index 0000000..b93d2b3
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/adapter/in/web/OrderPageResponse.java
+@@ -0,0 +1,13 @@
++package com.orderflow.order.adapter.in.web;
++
++import com.orderflow.order.application.port.in.ListOrdersUseCase.OrderPage;
++
++import java.util.List;
++
++record OrderPageResponse(List<OrderResponse> items, int page, int size, long totalItems, int totalPages) {
++
++    static OrderPageResponse from(OrderPage page) {
++        return new OrderPageResponse(page.items().stream().map(OrderResponse::from).toList(),
++                page.page(), page.size(), page.totalItems(), page.totalPages());
++    }
++}
+diff --git a/src/main/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapter.java b/src/main/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapter.java
+index a2beefa..62e6949 100644
+--- a/src/main/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapter.java
++++ b/src/main/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapter.java
+@@ -3,8 +3,11 @@ package com.orderflow.order.adapter.out.persistence;
+ import com.orderflow.order.application.port.out.OrderRepository;
+ import com.orderflow.order.domain.Order;
+ import com.orderflow.order.domain.OrderId;
++import org.springframework.data.domain.PageRequest;
++import org.springframework.data.domain.Sort;
+ import org.springframework.stereotype.Component;
+ 
++import java.util.List;
+ import java.util.Optional;
+ 
+ @Component
+@@ -25,4 +28,17 @@ class OrderPersistenceAdapter implements OrderRepository {
+     public Optional<Order> findById(OrderId id) {
+         return repository.findById(id.value()).map(OrderMapper::toDomain);
+     }
++
++    @Override
++    public List<Order> findByCustomer(String customerId, int page, int size) {
++        Sort newestFirst = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.asc("id"));
++        return repository.findByCustomerId(customerId, PageRequest.of(page, size, newestFirst)).stream()
++                .map(OrderMapper::toDomain)
++                .toList();
++    }
++
++    @Override
++    public long countByCustomer(String customerId) {
++        return repository.countByCustomerId(customerId);
++    }
+ }
+diff --git a/src/main/java/com/orderflow/order/adapter/out/persistence/SpringDataOrderRepository.java b/src/main/java/com/orderflow/order/adapter/out/persistence/SpringDataOrderRepository.java
+index 993d37c..7862766 100644
+--- a/src/main/java/com/orderflow/order/adapter/out/persistence/SpringDataOrderRepository.java
++++ b/src/main/java/com/orderflow/order/adapter/out/persistence/SpringDataOrderRepository.java
+@@ -1,8 +1,14 @@
+ package com.orderflow.order.adapter.out.persistence;
+ 
++import org.springframework.data.domain.Pageable;
+ import org.springframework.data.jpa.repository.JpaRepository;
+ 
++import java.util.List;
+ import java.util.UUID;
+ 
+ interface SpringDataOrderRepository extends JpaRepository<OrderJpaEntity, UUID> {
++
++    List<OrderJpaEntity> findByCustomerId(String customerId, Pageable pageable);
++
++    long countByCustomerId(String customerId);
+ }
+diff --git a/src/main/java/com/orderflow/order/application/port/in/ListOrdersUseCase.java b/src/main/java/com/orderflow/order/application/port/in/ListOrdersUseCase.java
+new file mode 100644
+index 0000000..fc6581a
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/application/port/in/ListOrdersUseCase.java
+@@ -0,0 +1,16 @@
++package com.orderflow.order.application.port.in;
++
++import java.util.List;
++
++public interface ListOrdersUseCase {
++
++    /** Orders of one customer, newest first. */
++    OrderPage list(ListOrdersQuery query);
++
++    /** @param page zero-based page number; @param size orders per page */
++    record ListOrdersQuery(String customerId, int page, int size) {
++    }
++
++    record OrderPage(List<OrderResult> items, int page, int size, long totalItems, int totalPages) {
++    }
++}
+diff --git a/src/main/java/com/orderflow/order/application/port/out/OrderRepository.java b/src/main/java/com/orderflow/order/application/port/out/OrderRepository.java
+index c21337f..6c7b545 100644
+--- a/src/main/java/com/orderflow/order/application/port/out/OrderRepository.java
++++ b/src/main/java/com/orderflow/order/application/port/out/OrderRepository.java
+@@ -3,6 +3,7 @@ package com.orderflow.order.application.port.out;
+ import com.orderflow.order.domain.Order;
+ import com.orderflow.order.domain.OrderId;
+ 
++import java.util.List;
+ import java.util.Optional;
+ 
+ public interface OrderRepository {
+@@ -10,4 +11,9 @@ public interface OrderRepository {
+     void save(Order order);
+ 
+     Optional<Order> findById(OrderId id);
++
++    /** One page of a customer's orders, newest first (ties by ID). */
++    List<Order> findByCustomer(String customerId, int page, int size);
++
++    long countByCustomer(String customerId);
+ }
+diff --git a/src/main/java/com/orderflow/order/application/service/ListOrdersService.java b/src/main/java/com/orderflow/order/application/service/ListOrdersService.java
+new file mode 100644
+index 0000000..f076b1c
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/application/service/ListOrdersService.java
+@@ -0,0 +1,34 @@
++package com.orderflow.order.application.service;
++
++import com.orderflow.order.application.port.in.ListOrdersUseCase;
++import com.orderflow.order.application.port.in.OrderResult;
++import com.orderflow.order.application.port.out.OrderRepository;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.annotation.Transactional;
++
++import java.util.List;
++import java.util.Objects;
++
++@Service
++@Transactional(readOnly = true)
++public class ListOrdersService implements ListOrdersUseCase {
++
++    private final OrderRepository orderRepository;
++
++    public ListOrdersService(OrderRepository orderRepository) {
++        this.orderRepository = orderRepository;
++    }
++
++    @Override
++    public OrderPage list(ListOrdersQuery query) {
++        Objects.requireNonNull(query, "query");
++        if (query.page() < 0 || query.size() < 1) {
++            throw new IllegalArgumentException("page must be >= 0 and size >= 1");
++        }
++        long total = orderRepository.countByCustomer(query.customerId());
++        List<OrderResult> items = orderRepository.findByCustomer(query.customerId(), query.page(), query.size())
++                .stream().map(OrderResult::from).toList();
++        int totalPages = (int) ((total + query.size() - 1) / query.size());
++        return new OrderPage(items, query.page(), query.size(), total, totalPages);
++    }
++}
+diff --git a/src/main/resources/db/migration/V6__index_orders_by_customer.sql b/src/main/resources/db/migration/V6__index_orders_by_customer.sql
+new file mode 100644
+index 0000000..5753cf5
+--- /dev/null
++++ b/src/main/resources/db/migration/V6__index_orders_by_customer.sql
+@@ -0,0 +1,2 @@
++-- Listing a customer's orders newest first (GET /api/v1/orders?customerId=...).
++CREATE INDEX orders_customer_created_idx ON orders.orders (customer_id, created_at DESC, id);
+diff --git a/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java b/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
+index d0ce5d0..4033920 100644
+--- a/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
++++ b/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
+@@ -3,6 +3,9 @@ package com.orderflow.order.adapter.in.web;
+ import com.orderflow.order.application.port.in.CreateOrderCommand;
+ import com.orderflow.order.application.port.in.CreateOrderUseCase;
+ import com.orderflow.order.application.port.in.GetOrderUseCase;
++import com.orderflow.order.application.port.in.ListOrdersUseCase;
++import com.orderflow.order.application.port.in.ListOrdersUseCase.ListOrdersQuery;
++import com.orderflow.order.application.port.in.ListOrdersUseCase.OrderPage;
+ import com.orderflow.order.application.port.in.OrderNotFoundException;
+ import com.orderflow.order.application.port.in.OrderResult;
+ import com.orderflow.order.domain.InvalidOrderException;
+@@ -43,6 +46,9 @@ class OrderControllerIT {
+     @MockitoBean
+     private GetOrderUseCase getOrderUseCase;
+ 
++    @MockitoBean
++    private ListOrdersUseCase listOrdersUseCase;
++
+     @Test
+     void returnsExistingOrder() throws Exception {
+         when(getOrderUseCase.get(ORDER_ID)).thenReturn(new OrderResult(
+@@ -69,6 +75,35 @@ class OrderControllerIT {
+                 .andExpect(jsonPath("$.detail").value("Order " + ORDER_ID + " not found"));
+     }
+ 
++    @Test
++    void listsOrdersOfACustomerWithDefaultPaging() throws Exception {
++        when(listOrdersUseCase.list(new ListOrdersQuery("c-1", 0, 20))).thenReturn(new OrderPage(List.of(
++                new OrderResult(ORDER_ID, "c-1", "CREATED", "EUR", new BigDecimal("3.00"),
++                        List.of(new OrderResult.Line("p-1", 2, new BigDecimal("1.50"), new BigDecimal("3.00"))),
++                        Instant.parse("2026-10-30T12:00:00Z"))), 0, 20, 1, 1));
++
++        mockMvc.perform(get("/api/v1/orders").param("customerId", "c-1"))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.items[0].id").value(ORDER_ID.toString()))
++                .andExpect(jsonPath("$.items[0].lines[0].lineTotal").value(3.00))
++                .andExpect(jsonPath("$.page").value(0))
++                .andExpect(jsonPath("$.size").value(20))
++                .andExpect(jsonPath("$.totalItems").value(1))
++                .andExpect(jsonPath("$.totalPages").value(1));
++    }
++
++    @Test
++    void rejectsInvalidListParametersWithProblem() throws Exception {
++        for (String query : List.of("", "customerId=c-1&size=0", "customerId=c-1&size=101",
++                "customerId=c-1&page=-1", "customerId=c-1&size=abc")) {
++            mockMvc.perform(get("/api/v1/orders?" + query))
++                    .andExpect(status().isBadRequest())
++                    .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON));
++        }
++
++        verifyNoInteractions(listOrdersUseCase);
++    }
++
+     @Test
+     void returns400ForMalformedOrderId() throws Exception {
+         mockMvc.perform(get("/api/v1/orders/not-a-uuid"))
+diff --git a/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java b/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java
+index 4de67c4..b48b018 100644
+--- a/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java
++++ b/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java
+@@ -123,6 +123,29 @@ class OrderPersistenceAdapterIT {
+         }).isInstanceOf(ObjectOptimisticLockingFailureException.class);
+     }
+ 
++    @Test
++    void findsAPageOfACustomersOrdersNewestFirst() {
++        Instant t0 = Instant.parse("2026-10-30T12:00:00Z");
++        Order oldest = order("c-page", t0);
++        Order middle = order("c-page", t0.plusSeconds(60));
++        Order newest = order("c-page", t0.plusSeconds(120));
++        order("c-other", t0.plusSeconds(180));
++        entityManager.flush();
++        entityManager.clear();
++
++        assertThat(adapter.findByCustomer("c-page", 0, 2)).extracting(Order::id)
++                .containsExactly(newest.id(), middle.id());
++        assertThat(adapter.findByCustomer("c-page", 1, 2)).extracting(Order::id).containsExactly(oldest.id());
++        assertThat(adapter.countByCustomer("c-page")).isEqualTo(3);
++    }
++
++    private Order order(String customerId, Instant createdAt) {
++        Order order = Order.create(OrderId.newId(), customerId,
++                List.of(new OrderLine("p-1", 1, Money.of(new BigDecimal("5.00"), "EUR"))), createdAt);
++        adapter.save(order);
++        return order;
++    }
++
+     private static Order newOrder() {
+         return Order.create(OrderId.newId(), "c-1",
+                 List.of(new OrderLine("p-1", 1, Money.of(new BigDecimal("5.00"), "EUR"))),
+diff --git a/src/test/java/com/orderflow/order/application/service/InMemoryOrderRepository.java b/src/test/java/com/orderflow/order/application/service/InMemoryOrderRepository.java
+index 78da2bc..ab65e1b 100644
+--- a/src/test/java/com/orderflow/order/application/service/InMemoryOrderRepository.java
++++ b/src/test/java/com/orderflow/order/application/service/InMemoryOrderRepository.java
+@@ -5,10 +5,12 @@ import com.orderflow.order.domain.Order;
+ import com.orderflow.order.domain.OrderId;
+ 
+ import java.util.ArrayList;
++import java.util.Comparator;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Optional;
++import java.util.stream.Stream;
+ 
+ /**
+  * Hand-written fake for the OrderRepository port. {@code saved} records every save call in order (and may be
+@@ -29,4 +31,23 @@ class InMemoryOrderRepository implements OrderRepository {
+     public Optional<Order> findById(OrderId id) {
+         return Optional.ofNullable(store.get(id));
+     }
++
++    @Override
++    public List<Order> findByCustomer(String customerId, int page, int size) {
++        return ofCustomer(customerId)
++                .sorted(Comparator.comparing(Order::createdAt).reversed()
++                        .thenComparing(order -> order.id().value()))
++                .skip((long) page * size)
++                .limit(size)
++                .toList();
++    }
++
++    @Override
++    public long countByCustomer(String customerId) {
++        return ofCustomer(customerId).count();
++    }
++
++    private Stream<Order> ofCustomer(String customerId) {
++        return store.values().stream().filter(order -> order.customerId().equals(customerId));
++    }
+ }
+diff --git a/src/test/java/com/orderflow/order/application/service/ListOrdersServiceTest.java b/src/test/java/com/orderflow/order/application/service/ListOrdersServiceTest.java
+new file mode 100644
+index 0000000..04c0ff3
+--- /dev/null
++++ b/src/test/java/com/orderflow/order/application/service/ListOrdersServiceTest.java
+@@ -0,0 +1,65 @@
++package com.orderflow.order.application.service;
++
++import com.orderflow.order.application.port.in.ListOrdersUseCase.ListOrdersQuery;
++import com.orderflow.order.application.port.in.ListOrdersUseCase.OrderPage;
++import com.orderflow.order.application.port.in.OrderResult;
++import com.orderflow.order.domain.Order;
++import com.orderflow.order.domain.OrderId;
++import com.orderflow.order.domain.OrderLine;
++import com.orderflow.shared.domain.Money;
++import org.junit.jupiter.api.Test;
++
++import java.math.BigDecimal;
++import java.time.Instant;
++import java.util.List;
++import java.util.UUID;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.assertj.core.api.Assertions.assertThatThrownBy;
++
++class ListOrdersServiceTest {
++
++    private static final Instant T0 = Instant.parse("2026-10-30T12:00:00Z");
++
++    private final InMemoryOrderRepository repository = new InMemoryOrderRepository();
++    private final ListOrdersService service = new ListOrdersService(repository);
++
++    @Test
++    void returnsTheRequestedPageNewestFirst() {
++        List<UUID> ids = List.of(save("c-1", 0), save("c-1", 1), save("c-1", 2), save("c-1", 3), save("c-1", 4));
++        save("c-2", 5);
++
++        OrderPage page = service.list(new ListOrdersQuery("c-1", 1, 2));
++
++        assertThat(page.items()).extracting(OrderResult::id).containsExactly(ids.get(2), ids.get(1));
++        assertThat(page.page()).isEqualTo(1);
++        assertThat(page.size()).isEqualTo(2);
++        assertThat(page.totalItems()).isEqualTo(5);
++        assertThat(page.totalPages()).isEqualTo(3);
++    }
++
++    @Test
++    void customerWithoutOrdersHasNoPages() {
++        OrderPage page = service.list(new ListOrdersQuery("nobody", 0, 20));
++
++        assertThat(page.items()).isEmpty();
++        assertThat(page.totalItems()).isZero();
++        assertThat(page.totalPages()).isZero();
++    }
++
++    @Test
++    void rejectsInvalidPaging() {
++        assertThatThrownBy(() -> service.list(new ListOrdersQuery("c-1", -1, 20)))
++                .isInstanceOf(IllegalArgumentException.class);
++        assertThatThrownBy(() -> service.list(new ListOrdersQuery("c-1", 0, 0)))
++                .isInstanceOf(IllegalArgumentException.class);
++    }
++
++    private UUID save(String customer, int minutesAfterT0) {
++        Order order = Order.create(OrderId.newId(), customer,
++                List.of(new OrderLine("p-1", 1, Money.of(new BigDecimal("5.00"), "EUR"))),
++                T0.plusSeconds(60L * minutesAfterT0));
++        repository.save(order);
++        return order.id().value();
++    }
++}

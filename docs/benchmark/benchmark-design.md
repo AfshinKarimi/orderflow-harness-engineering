@@ -91,8 +91,8 @@ Automated acceptance checks failed after your change:
 Fix the implementation so that these checks pass.
 ```
 
-Architecture-rule failures appear in the same list (`ArchitectureOracle.<rule>`). The hidden tests themselves are
-never shown.
+Architecture-rule failures appear in the same list (`ArchitectureOracleTest.<rule>`). The hidden tests themselves
+are never shown.
 
 ### 3.3 Fixed conditions
 
@@ -113,9 +113,12 @@ never shown.
 After turn 2 and after each correction turn, the oracle runs on a **copy** of the agent's work directory (the
 agent's directory is never modified by the evaluation):
 
-1. Copy the hidden oracle tests for the task, the shared `ArchitectureOracle` (rules 1–10 and 12 from
-   `ArchitectureTest`) and `SchemaOwnershipOracle` into the copy.
-2. Run `./mvnw -o verify` with the regression suite (all tests of the base commit), the task's acceptance tests
+1. `benchmark/scripts/prepare-oracle.sh` copies the hidden tests into the copy (package
+   `com.orderflow.benchmark.oracle`): the task's tests, `ArchitectureOracleTest` (copy of rules 1–10 and 12),
+   `SchemaOwnershipOracleIT`, `MigrationsUnchangedOracleTest` (base `V1`–`V5` byte-identical), and their own
+   containers. It restores `archunit.properties` and adds ArchUnit to `pom.xml` if missing (arm A).
+2. Run `./mvnw -o verify` with the regression suite (the test files of the base commit, in the agent's current
+   version: adapting a test is allowed, weakening it is measured separately), the task's acceptance tests
    and the architecture oracle. Checkstyle and coverage thresholds are **not** part of the score.
    If a task deliberately changes a contract that existing tests encode (T05: the address becomes required),
    `spec.md` names those tests and the oracle uses updated copies of them; no other regression test is replaced.
@@ -209,6 +212,17 @@ after turn 2 (the agent's own claim of completion); "final" is the state after t
 | Environment leakage between runs | Fresh history-free clone and empty Claude config per run; directory deleted afterwards |
 | Infrastructure flakiness | Evaluation re-run once on infrastructure errors; agent never re-run |
 | Prompt sensitivity | Identical prompts; prompts are frozen with the task files before the first run |
+
+### 3.6 Oracle validity
+
+Before any run, `benchmark/scripts/validate-oracle.sh <task>` checks each task's oracle on a fresh clone:
+
+1. On the unchanged base commit, every acceptance test of the task **fails**. Tests that protect behaviour which
+   must not change (e.g. "20 lines are still accepted") live in `*GuardIT`/`*GuardTest` classes and must **pass**.
+2. With the reference solution (`benchmark/reference/<task>.patch`) applied, **every** test passes: regression
+   suite, task oracle and architecture oracle. Reference solutions also pass the project's own quality gate.
+
+Per-test results are kept in `benchmark/oracle/validation/`.
 
 ## 7. Increments
 
