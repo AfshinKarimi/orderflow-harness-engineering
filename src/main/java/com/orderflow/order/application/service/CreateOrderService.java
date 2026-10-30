@@ -10,7 +10,6 @@ import com.orderflow.order.domain.OrderLine;
 import com.orderflow.shared.domain.Money;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.Assert;
 
 import java.time.Clock;
 import java.util.List;
@@ -31,7 +30,6 @@ public class CreateOrderService implements CreateOrderUseCase {
     @Override
     public OrderResult create(CreateOrderCommand command) {
         Objects.requireNonNull(command, "command");
-        Assert.notEmpty(command.lines(), "Order must have at least one line");
         List<OrderLine> lines = command.lines() == null ? List.of() : command.lines().stream()
                 .map(line -> new OrderLine(
                         line.productId(),
