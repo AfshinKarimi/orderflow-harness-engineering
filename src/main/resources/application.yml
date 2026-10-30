@@ -11,6 +11,23 @@ spring:
       ddl-auto: validate
   flyway:
     locations: classpath:db/migration
+  kafka:
+    producer:
+      # Durable, de-duplicated producer writes; fail within ~10 s when the broker is unreachable (ADR-0003).
+      acks: all
+      properties:
+        enable.idempotence: true
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+        max.block.ms: 5000
+
+orderflow:
+  outbox:
+    relay:
+      enabled: true
+      interval: 1s
+      batch-size: 100
+      send-timeout: 15s
 
 management:
   endpoints:
