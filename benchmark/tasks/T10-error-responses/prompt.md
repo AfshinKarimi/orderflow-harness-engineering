@@ -1,7 +1,8 @@
 Make the error responses of the order API uniform and safe.
 
-All error responses of `/api/v1/orders` endpoints are `application/problem+json` (RFC 9457) with `type`, `title`,
-`status` and `detail`, and a `correlationId` property equal to the `X-Correlation-Id` response header.
+All error responses of `/api/v1/orders` endpoints are `application/problem+json` (RFC 9457) with `title`, `status`
+and `detail` (and `type`, which may be omitted when it is `about:blank`), and a `correlationId` property equal to
+the `X-Correlation-Id` response header.
 
 Requirements:
 - Unknown order (`GET /api/v1/orders/{id}`): `404`, title `Order not found`, plus a property `orderId`.

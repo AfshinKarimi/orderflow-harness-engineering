@@ -1,0 +1,9 @@
+ok   PASSED  (expected PASSED      ) T09ContractGuardTest.useCaseInterfacesAreUnchanged
+ok   ERROR   (expected FAILED/ERROR) T09CustomerIdOracleTest.customerIdValidates
+ok   FAILED  (expected FAILED/ERROR) T09CustomerIdOracleTest.orderExposesACustomerId
+ok   ERROR   (expected FAILED/ERROR) T09CustomerIdOracleTest.customerIdWrapsTheValue
+ok   PASSED  (expected PASSED      ) T09ContractGuardIT.createAndGetResponsesAreUnchanged
+ok   PASSED  (expected PASSED      ) T09ContractGuardIT.noMigrationWasAdded
+ok   PASSED  (expected PASSED      ) T09ContractGuardIT.validationErrorsAreUnchanged
+
+base: 7 task oracle tests, 7 test cases in total, 0 problem(s)

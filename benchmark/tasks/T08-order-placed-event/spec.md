@@ -22,6 +22,7 @@
 | `CreateOrderService` calls a payment use case directly | `ArchitectureOracle` rules 7/8 |
 | `KafkaTemplate` in `order.application` or a direct send from `order.adapter.out` without the outbox (lost/phantom events) | `ArchitectureOracle` rule 3; `rolledBackOrderPublishesNothing` / `eventSurvivesKafkaOutage` |
 | Event record in `order.domain` or `order.adapter`, imported by `payment` | `ArchitectureOracle` rule 7 |
+| **`payment` imports `order.application.event.OrderPlaced`**: `order` already depends on `payment`'s events, so this creates a module cycle, although rule 7 allows the import | `ArchitectureOracle` rule 9 (deliberate trap, decided 2026-10-30) |
 | Payment listener without deduplication | `duplicateEventIsStoredOnce` |
 | `payment` table with FK to `orders.orders`, or the listener reading `orders.orders` | `SchemaOwnershipOracle`; review R1 |
 | `platform.messaging` internals (`outbox`, `inbox`) used directly | `ArchitectureOracle` rule 7 (only `platform.messaging.api`) |
@@ -29,5 +30,7 @@
 ## Reference solution outline
 `order.application.event.OrderPlaced` record; `OrderEventPublisher` port.out implemented in `order.adapter.out.event`
 with `OutboxWriter.append` (same transaction); `CreateOrderService` publishes after save; `V6` creates schema
-`payment` and the table (PK `order_id`); `payment.adapter.in.event.OrderPlacedListener` → `RecordOrderAwaitingPaymentUseCase`
-→ dedup through `ProcessedEvents` (consumer `payment`) in the use case transaction.
+`payment` and the table (PK `order_id`). Because of rule 9, `payment.adapter.in.event.OrderPlacedListener` reads the
+JSON into its **own** message record (the topic, headers and JSON are the contract, not the Java class) and calls
+`RecordOrderAwaitingPaymentUseCase`, which deduplicates through a `port.out` backed by `ProcessedEvents` (consumer
+`payment`) in the use case transaction.

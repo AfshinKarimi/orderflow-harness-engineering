@@ -1,0 +1,221 @@
+diff --git a/src/main/java/com/orderflow/order/adapter/in/web/OrderApiExceptionHandler.java b/src/main/java/com/orderflow/order/adapter/in/web/OrderApiExceptionHandler.java
+index 68d9b04..4fe4465 100644
+--- a/src/main/java/com/orderflow/order/adapter/in/web/OrderApiExceptionHandler.java
++++ b/src/main/java/com/orderflow/order/adapter/in/web/OrderApiExceptionHandler.java
+@@ -2,11 +2,17 @@ package com.orderflow.order.adapter.in.web;
+ 
+ import com.orderflow.order.application.port.in.OrderNotFoundException;
+ import com.orderflow.shared.domain.DomainException;
++import jakarta.servlet.http.HttpServletRequest;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++import org.springframework.core.Ordered;
++import org.springframework.core.annotation.Order;
+ import org.springframework.http.HttpHeaders;
+ import org.springframework.http.HttpStatus;
+ import org.springframework.http.HttpStatusCode;
+ import org.springframework.http.ProblemDetail;
+ import org.springframework.http.ResponseEntity;
++import org.springframework.http.converter.HttpMessageNotReadableException;
+ import org.springframework.web.bind.MethodArgumentNotValidException;
+ import org.springframework.web.bind.annotation.ExceptionHandler;
+ import org.springframework.web.bind.annotation.RestControllerAdvice;
+@@ -21,8 +27,11 @@ import java.util.Map;
+  * (a global handler would need a shared web package, which is an architecture decision).
+  */
+ @RestControllerAdvice(basePackageClasses = OrderController.class)
++@Order(Ordered.HIGHEST_PRECEDENCE) // before the platform's fallback handler
+ class OrderApiExceptionHandler extends ResponseEntityExceptionHandler {
+ 
++    private static final Logger LOG = LoggerFactory.getLogger(OrderApiExceptionHandler.class);
++
+     @ExceptionHandler(DomainException.class)
+     ProblemDetail handleDomainException(DomainException exception) {
+         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+@@ -34,9 +43,33 @@ class OrderApiExceptionHandler extends ResponseEntityExceptionHandler {
+     ProblemDetail handleOrderNotFound(OrderNotFoundException exception) {
+         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+         problem.setTitle("Order not found");
++        problem.setProperty("orderId", exception.orderId());
++        return problem;
++    }
++
++    /**
++     * Anything not handled above, e.g. an unavailable database. The client gets a fixed text; the details go to the
++     * log only (with the request's correlation ID, which is also in the response).
++     */
++    @ExceptionHandler(Exception.class)
++    ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
++        LOG.error("Unexpected error on {} {}", request.getMethod(), request.getRequestURI(), exception);
++        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
++                "An unexpected error occurred.");
++        problem.setTitle("Internal error");
+         return problem;
+     }
+ 
++    /** Parser messages name Java types and quote input; never return them. */
++    @Override
++    protected ResponseEntity<Object> handleHttpMessageNotReadable(
++            HttpMessageNotReadableException exception, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
++        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status,
++                "The request body is not valid JSON or contains a value of the wrong type.");
++        problem.setTitle("Malformed request");
++        return handleExceptionInternal(exception, problem, headers, status, request);
++    }
++
+     @Override
+     protected ResponseEntity<Object> handleMethodArgumentNotValid(
+             MethodArgumentNotValidException exception, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+diff --git a/src/main/java/com/orderflow/order/application/port/in/OrderNotFoundException.java b/src/main/java/com/orderflow/order/application/port/in/OrderNotFoundException.java
+index 1a61077..d3d951c 100644
+--- a/src/main/java/com/orderflow/order/application/port/in/OrderNotFoundException.java
++++ b/src/main/java/com/orderflow/order/application/port/in/OrderNotFoundException.java
+@@ -5,7 +5,14 @@ import java.util.UUID;
+ /** Not a business rule violation (that would be a DomainException): the requested order does not exist. */
+ public class OrderNotFoundException extends RuntimeException {
+ 
++    private final UUID orderId;
++
+     public OrderNotFoundException(UUID orderId) {
+         super("Order " + orderId + " not found");
++        this.orderId = orderId;
++    }
++
++    public UUID orderId() {
++        return orderId;
+     }
+ }
+diff --git a/src/main/java/com/orderflow/platform/observability/CorrelationIdProblemDetailAdvice.java b/src/main/java/com/orderflow/platform/observability/CorrelationIdProblemDetailAdvice.java
+new file mode 100644
+index 0000000..9f6782f
+--- /dev/null
++++ b/src/main/java/com/orderflow/platform/observability/CorrelationIdProblemDetailAdvice.java
+@@ -0,0 +1,37 @@
++package com.orderflow.platform.observability;
++
++import org.springframework.core.MethodParameter;
++import org.springframework.http.MediaType;
++import org.springframework.http.ProblemDetail;
++import org.springframework.http.converter.HttpMessageConverter;
++import org.springframework.http.server.ServerHttpRequest;
++import org.springframework.http.server.ServerHttpResponse;
++import org.springframework.web.bind.annotation.RestControllerAdvice;
++import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
++
++/**
++ * Adds the request's correlation ID to every RFC 9457 problem response, whichever handler produced it (a module's
++ * exception handler or Spring's own for 404/405/415), so a client can quote it when reporting an error.
++ */
++@RestControllerAdvice
++class CorrelationIdProblemDetailAdvice implements ResponseBodyAdvice<Object> {
++
++    static final String PROPERTY = "correlationId";
++
++    @Override
++    public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
++        return true;
++    }
++
++    @Override
++    public Object beforeBodyWrite(Object body, MethodParameter returnType, MediaType contentType,
++                                  Class<? extends HttpMessageConverter<?>> converterType, ServerHttpRequest request,
++                                  ServerHttpResponse response) {
++        String correlationId = CorrelationId.current();
++        if (body instanceof ProblemDetail problem && correlationId != null
++                && (problem.getProperties() == null || !problem.getProperties().containsKey(PROPERTY))) {
++            problem.setProperty(PROPERTY, correlationId);
++        }
++        return body;
++    }
++}
+diff --git a/src/main/java/com/orderflow/platform/web/ProblemDetailsFallbackHandler.java b/src/main/java/com/orderflow/platform/web/ProblemDetailsFallbackHandler.java
+new file mode 100644
+index 0000000..a54cf46
+--- /dev/null
++++ b/src/main/java/com/orderflow/platform/web/ProblemDetailsFallbackHandler.java
+@@ -0,0 +1,16 @@
++package com.orderflow.platform.web;
++
++import org.springframework.core.Ordered;
++import org.springframework.core.annotation.Order;
++import org.springframework.web.bind.annotation.RestControllerAdvice;
++import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
++
++/**
++ * RFC 9457 bodies for errors that happen before a controller is chosen (405, 415, unknown paths), which module
++ * exception handlers (scoped to their controllers) never see. Spring Boot's own handler of this kind is not
++ * registered once any module defines a {@link ResponseEntityExceptionHandler}. Lowest precedence: module handlers win.
++ */
++@RestControllerAdvice
++@Order(Ordered.LOWEST_PRECEDENCE)
++class ProblemDetailsFallbackHandler extends ResponseEntityExceptionHandler {
++}
+diff --git a/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java b/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
+index d0ce5d0..5c66e96 100644
+--- a/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
++++ b/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
+@@ -18,10 +18,12 @@ import java.time.Instant;
+ import java.util.List;
+ import java.util.UUID;
+ 
++import static org.assertj.core.api.Assertions.assertThat;
+ import static org.mockito.ArgumentMatchers.any;
+ import static org.mockito.Mockito.verify;
+ import static org.mockito.Mockito.verifyNoInteractions;
+ import static org.mockito.Mockito.when;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+@@ -141,11 +143,50 @@ class OrderControllerIT {
+     @Test
+     void rejectsMalformedJson() throws Exception {
+         mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON).content("{not json"))
+-                .andExpect(status().isBadRequest());
++                .andExpect(status().isBadRequest())
++                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
++                .andExpect(jsonPath("$.title").value("Malformed request"))
++                .andExpect(jsonPath("$.detail")
++                        .value("The request body is not valid JSON or contains a value of the wrong type."));
+ 
+         verifyNoInteractions(createOrderUseCase);
+     }
+ 
++    @Test
++    void unexpectedFailureIsA500WithoutInternals() throws Exception {
++        when(getOrderUseCase.get(ORDER_ID)).thenThrow(new IllegalStateException("SELECT secret FROM jdbc"));
++
++        String body = mockMvc.perform(get("/api/v1/orders/" + ORDER_ID).header("X-Correlation-Id", "c-500"))
++                .andExpect(status().isInternalServerError())
++                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
++                .andExpect(jsonPath("$.title").value("Internal error"))
++                .andExpect(jsonPath("$.detail").value("An unexpected error occurred."))
++                .andExpect(jsonPath("$.correlationId").value("c-500"))
++                .andReturn().getResponse().getContentAsString();
++
++        assertThat(body).doesNotContain("secret", "IllegalStateException");
++    }
++
++    @Test
++    void everyProblemCarriesTheCorrelationId() throws Exception {
++        when(getOrderUseCase.get(ORDER_ID)).thenThrow(new OrderNotFoundException(ORDER_ID));
++
++        mockMvc.perform(get("/api/v1/orders/" + ORDER_ID).header("X-Correlation-Id", "c-404"))
++                .andExpect(status().isNotFound())
++                .andExpect(header().string("X-Correlation-Id", "c-404"))
++                .andExpect(jsonPath("$.orderId").value(ORDER_ID.toString()))
++                .andExpect(jsonPath("$.correlationId").value("c-404"));
++        mockMvc.perform(delete("/api/v1/orders/" + ORDER_ID).header("X-Correlation-Id", "c-405"))
++                .andExpect(status().isMethodNotAllowed())
++                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
++                .andExpect(jsonPath("$.correlationId").value("c-405"));
++        mockMvc.perform(post("/api/v1/orders").contentType(MediaType.TEXT_PLAIN).content("x")
++                        .header("X-Correlation-Id", "c-415"))
++                .andExpect(status().isUnsupportedMediaType())
++                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
++                .andExpect(jsonPath("$.correlationId").value("c-415"));
++    }
++
+     @Test
+     void mapsDomainRuleViolationTo400ProblemDetail() throws Exception {
+         when(createOrderUseCase.create(any()))

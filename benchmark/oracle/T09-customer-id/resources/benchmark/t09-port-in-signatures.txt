@@ -1,0 +1,38 @@
+com.orderflow.order.application.port.in.CreateOrderCommand record
+  component customerId: java.lang.String
+  component currency: java.lang.String
+  component lines: java.util.List<com.orderflow.order.application.port.in.CreateOrderCommand$Line>
+com.orderflow.order.application.port.in.CreateOrderCommand$Line record
+  component productId: java.lang.String
+  component quantity: int
+  component unitPrice: java.math.BigDecimal
+com.orderflow.order.application.port.in.CreateOrderUseCase interface
+  method create[com.orderflow.order.application.port.in.CreateOrderCommand]: com.orderflow.order.application.port.in.OrderResult
+com.orderflow.order.application.port.in.GetOrderUseCase interface
+  method get[java.util.UUID]: com.orderflow.order.application.port.in.OrderResult
+com.orderflow.order.application.port.in.HandlePaymentResultUseCase interface
+  method handle[com.orderflow.order.application.port.in.HandlePaymentResultUseCase$PaymentResultCommand]: com.orderflow.order.application.port.in.HandlePaymentResultUseCase$Outcome
+com.orderflow.order.application.port.in.HandlePaymentResultUseCase$Outcome enum
+  constants [APPLIED, DUPLICATE_EVENT, NO_CHANGE]
+com.orderflow.order.application.port.in.HandlePaymentResultUseCase$PaymentResult enum
+  constants [SUCCEEDED, FAILED]
+com.orderflow.order.application.port.in.HandlePaymentResultUseCase$PaymentResultCommand record
+  component eventId: java.util.UUID
+  component orderId: java.util.UUID
+  component attemptId: java.util.UUID
+  component result: com.orderflow.order.application.port.in.HandlePaymentResultUseCase$PaymentResult
+com.orderflow.order.application.port.in.OrderNotFoundException class
+  constructor[java.util.UUID]
+com.orderflow.order.application.port.in.OrderResult record
+  component id: java.util.UUID
+  component customerId: java.lang.String
+  component status: java.lang.String
+  component currency: java.lang.String
+  component totalAmount: java.math.BigDecimal
+  component lines: java.util.List<com.orderflow.order.application.port.in.OrderResult$Line>
+  component createdAt: java.time.Instant
+com.orderflow.order.application.port.in.OrderResult$Line record
+  component productId: java.lang.String
+  component quantity: int
+  component unitPrice: java.math.BigDecimal
+  component lineTotal: java.math.BigDecimal

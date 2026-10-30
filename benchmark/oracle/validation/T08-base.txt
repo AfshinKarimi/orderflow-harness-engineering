@@ -1,0 +1,8 @@
+ok   PASSED  (expected PASSED      ) T08OrderPlacedGuardIT.rejectedOrderPublishesNothing
+ok   PASSED  (expected PASSED      ) T08OrderPlacedGuardIT.rolledBackOrderPublishesNothing
+ok   ERROR   (expected FAILED/ERROR) T08OrderPlacedOracleIT.paymentModuleStoresTheOrder
+ok   FAILED  (expected FAILED/ERROR) T08OrderPlacedOracleIT.createdOrderIsPublished
+ok   FAILED  (expected FAILED/ERROR) T08OrderPlacedOracleIT.eventSurvivesKafkaOutage
+ok   FAILED  (expected FAILED/ERROR) T08OrderPlacedOracleIT.duplicateEventIsStoredOnce
+
+base: 6 task oracle tests, 6 test cases in total, 0 problem(s)

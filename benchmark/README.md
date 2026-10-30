@@ -15,7 +15,7 @@ Design, protocol and metrics: [docs/benchmark/benchmark-design.md](../docs/bench
 This directory exists only on the benchmark branch. Runs start from a history-free clone of `bench/base-A` or
 `bench/base-B`, which do not contain it.
 
-Status: increment 2 in progress. Oracle and reference solution done and validated for T01-T06; T07-T10
-pending. The runner (increment 3) is not written. No benchmark has been run.
+Status: increment 2 done. Hidden tests and a reference solution for all 10 tasks, each validated. The runner
+(increment 3) is not written. The runner (increment 3) is not written. No benchmark has been run.
 
 Validate a task's oracle (needs Docker and a filled Maven cache): `benchmark/scripts/validate-oracle.sh T03`

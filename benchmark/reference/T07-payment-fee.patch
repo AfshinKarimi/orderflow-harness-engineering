@@ -1,0 +1,275 @@
+diff --git a/src/main/java/com/orderflow/order/adapter/in/web/PaymentFeeController.java b/src/main/java/com/orderflow/order/adapter/in/web/PaymentFeeController.java
+new file mode 100644
+index 0000000..68918c9
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/adapter/in/web/PaymentFeeController.java
+@@ -0,0 +1,39 @@
++package com.orderflow.order.adapter.in.web;
++
++import com.orderflow.order.application.port.in.GetOrderUseCase;
++import com.orderflow.order.application.port.in.OrderResult;
++import com.orderflow.payment.application.port.in.QuoteFeeUseCase;
++import com.orderflow.payment.application.port.in.QuoteFeeUseCase.FeeQuote;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.RequestParam;
++import org.springframework.web.bind.annotation.RestController;
++
++import java.math.BigDecimal;
++import java.util.UUID;
++
++/**
++ * Fee quote for an order. Served by the order module because the order total lives here: the order module may call
++ * the payment module's public API, but not the other way round (order already consumes payment events, so a call
++ * from payment to order would be a module cycle, architecture rule 9). The fee policy itself belongs to payment.
++ */
++@RestController
++class PaymentFeeController {
++
++    private final GetOrderUseCase getOrderUseCase;
++    private final QuoteFeeUseCase quoteFeeUseCase;
++
++    PaymentFeeController(GetOrderUseCase getOrderUseCase, QuoteFeeUseCase quoteFeeUseCase) {
++        this.getOrderUseCase = getOrderUseCase;
++        this.quoteFeeUseCase = quoteFeeUseCase;
++    }
++
++    @GetMapping("/api/v1/payments/fees")
++    PaymentFeeResponse quote(@RequestParam UUID orderId) {
++        OrderResult order = getOrderUseCase.get(orderId);
++        FeeQuote quote = quoteFeeUseCase.quote(order.totalAmount(), order.currency());
++        return new PaymentFeeResponse(order.id(), order.currency(), order.totalAmount(), quote.fee());
++    }
++
++    record PaymentFeeResponse(UUID orderId, String currency, BigDecimal orderTotal, BigDecimal fee) {
++    }
++}
+diff --git a/src/main/java/com/orderflow/payment/application/port/in/QuoteFeeUseCase.java b/src/main/java/com/orderflow/payment/application/port/in/QuoteFeeUseCase.java
+new file mode 100644
+index 0000000..c94898a
+--- /dev/null
++++ b/src/main/java/com/orderflow/payment/application/port/in/QuoteFeeUseCase.java
+@@ -0,0 +1,12 @@
++package com.orderflow.payment.application.port.in;
++
++import java.math.BigDecimal;
++
++public interface QuoteFeeUseCase {
++
++    /** Fee for paying an order with this total, in the order's currency. */
++    FeeQuote quote(BigDecimal orderTotal, String currency);
++
++    record FeeQuote(BigDecimal fee, String currency) {
++    }
++}
+diff --git a/src/main/java/com/orderflow/payment/application/service/QuoteFeeService.java b/src/main/java/com/orderflow/payment/application/service/QuoteFeeService.java
+new file mode 100644
+index 0000000..0990e37
+--- /dev/null
++++ b/src/main/java/com/orderflow/payment/application/service/QuoteFeeService.java
+@@ -0,0 +1,18 @@
++package com.orderflow.payment.application.service;
++
++import com.orderflow.payment.application.port.in.QuoteFeeUseCase;
++import com.orderflow.payment.domain.FeePolicy;
++import com.orderflow.shared.domain.Money;
++import org.springframework.stereotype.Service;
++
++import java.math.BigDecimal;
++
++@Service
++public class QuoteFeeService implements QuoteFeeUseCase {
++
++    @Override
++    public FeeQuote quote(BigDecimal orderTotal, String currency) {
++        Money fee = FeePolicy.feeFor(Money.of(orderTotal, currency));
++        return new FeeQuote(fee.amount(), fee.currency().getCurrencyCode());
++    }
++}
+diff --git a/src/main/java/com/orderflow/payment/domain/FeePolicy.java b/src/main/java/com/orderflow/payment/domain/FeePolicy.java
+new file mode 100644
+index 0000000..13eaaa5
+--- /dev/null
++++ b/src/main/java/com/orderflow/payment/domain/FeePolicy.java
+@@ -0,0 +1,23 @@
++package com.orderflow.payment.domain;
++
++import com.orderflow.shared.domain.Money;
++
++import java.math.BigDecimal;
++import java.math.RoundingMode;
++import java.util.Objects;
++
++/** Payment fee: 1.5 % of the order total, rounded half-up to 2 decimals, at least 0.50. */
++public final class FeePolicy {
++
++    static final BigDecimal RATE = new BigDecimal("0.015");
++    static final BigDecimal MINIMUM = new BigDecimal("0.50");
++
++    private FeePolicy() {
++    }
++
++    public static Money feeFor(Money orderTotal) {
++        Objects.requireNonNull(orderTotal, "orderTotal");
++        BigDecimal fee = orderTotal.amount().multiply(RATE).setScale(2, RoundingMode.HALF_UP);
++        return new Money(fee.max(MINIMUM), orderTotal.currency());
++    }
++}
+diff --git a/src/test/java/com/orderflow/order/adapter/in/web/PaymentFeeControllerIT.java b/src/test/java/com/orderflow/order/adapter/in/web/PaymentFeeControllerIT.java
+new file mode 100644
+index 0000000..ea15ac0
+--- /dev/null
++++ b/src/test/java/com/orderflow/order/adapter/in/web/PaymentFeeControllerIT.java
+@@ -0,0 +1,76 @@
++package com.orderflow.order.adapter.in.web;
++
++import com.orderflow.order.application.port.in.GetOrderUseCase;
++import com.orderflow.order.application.port.in.OrderNotFoundException;
++import com.orderflow.order.application.port.in.OrderResult;
++import com.orderflow.payment.application.port.in.QuoteFeeUseCase;
++import com.orderflow.payment.application.port.in.QuoteFeeUseCase.FeeQuote;
++import org.junit.jupiter.api.Test;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
++import org.springframework.http.MediaType;
++import org.springframework.test.context.bean.override.mockito.MockitoBean;
++import org.springframework.test.web.servlet.MockMvc;
++
++import java.math.BigDecimal;
++import java.time.Instant;
++import java.util.List;
++import java.util.UUID;
++
++import static org.mockito.Mockito.verifyNoInteractions;
++import static org.mockito.Mockito.when;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
++
++@WebMvcTest(PaymentFeeController.class)
++class PaymentFeeControllerIT {
++
++    private static final UUID ORDER_ID = UUID.fromString("0b6f5a52-3c4e-4d0a-9a43-6d8f1f0e2a11");
++
++    @Autowired
++    private MockMvc mockMvc;
++
++    @MockitoBean
++    private GetOrderUseCase getOrderUseCase;
++
++    @MockitoBean
++    private QuoteFeeUseCase quoteFeeUseCase;
++
++    @Test
++    void quotesTheFeeForTheOrderTotal() throws Exception {
++        when(getOrderUseCase.get(ORDER_ID)).thenReturn(new OrderResult(ORDER_ID, "c-1", "CREATED", "EUR",
++                new BigDecimal("120.00"), List.of(), Instant.parse("2026-10-30T12:00:00Z")));
++        when(quoteFeeUseCase.quote(new BigDecimal("120.00"), "EUR"))
++                .thenReturn(new FeeQuote(new BigDecimal("1.80"), "EUR"));
++
++        mockMvc.perform(get("/api/v1/payments/fees").param("orderId", ORDER_ID.toString()))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.orderId").value(ORDER_ID.toString()))
++                .andExpect(jsonPath("$.currency").value("EUR"))
++                .andExpect(jsonPath("$.orderTotal").value(120.00))
++                .andExpect(jsonPath("$.fee").value(1.80));
++    }
++
++    @Test
++    void unknownOrderIs404Problem() throws Exception {
++        when(getOrderUseCase.get(ORDER_ID)).thenThrow(new OrderNotFoundException(ORDER_ID));
++
++        mockMvc.perform(get("/api/v1/payments/fees").param("orderId", ORDER_ID.toString()))
++                .andExpect(status().isNotFound())
++                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON));
++    }
++
++    @Test
++    void missingOrInvalidOrderIdIs400Problem() throws Exception {
++        mockMvc.perform(get("/api/v1/payments/fees"))
++                .andExpect(status().isBadRequest())
++                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON));
++        mockMvc.perform(get("/api/v1/payments/fees").param("orderId", "abc"))
++                .andExpect(status().isBadRequest())
++                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON));
++
++        verifyNoInteractions(getOrderUseCase, quoteFeeUseCase);
++    }
++}
+diff --git a/src/test/java/com/orderflow/payment/application/service/QuoteFeeServiceTest.java b/src/test/java/com/orderflow/payment/application/service/QuoteFeeServiceTest.java
+new file mode 100644
+index 0000000..a6f7865
+--- /dev/null
++++ b/src/test/java/com/orderflow/payment/application/service/QuoteFeeServiceTest.java
+@@ -0,0 +1,21 @@
++package com.orderflow.payment.application.service;
++
++import com.orderflow.payment.application.port.in.QuoteFeeUseCase.FeeQuote;
++import org.junit.jupiter.api.Test;
++
++import java.math.BigDecimal;
++
++import static org.assertj.core.api.Assertions.assertThat;
++
++class QuoteFeeServiceTest {
++
++    private final QuoteFeeService service = new QuoteFeeService();
++
++    @Test
++    void quotesTheFeeInTheOrderCurrency() {
++        FeeQuote quote = service.quote(new BigDecimal("120.00"), "USD");
++
++        assertThat(quote.fee()).isEqualByComparingTo("1.80");
++        assertThat(quote.currency()).isEqualTo("USD");
++    }
++}
+diff --git a/src/test/java/com/orderflow/payment/domain/FeePolicyTest.java b/src/test/java/com/orderflow/payment/domain/FeePolicyTest.java
+new file mode 100644
+index 0000000..3066c53
+--- /dev/null
++++ b/src/test/java/com/orderflow/payment/domain/FeePolicyTest.java
+@@ -0,0 +1,44 @@
++package com.orderflow.payment.domain;
++
++import com.orderflow.shared.domain.Money;
++import org.junit.jupiter.api.Test;
++
++import java.math.BigDecimal;
++
++import static org.assertj.core.api.Assertions.assertThat;
++
++class FeePolicyTest {
++
++    @Test
++    void feeIsOnePointFivePercent() {
++        assertThat(FeePolicy.feeFor(eur("120.00"))).isEqualTo(eur("1.80"));
++    }
++
++    @Test
++    void roundsHalfUpToTwoDecimals() {
++        assertThat(FeePolicy.feeFor(eur("103.00"))).isEqualTo(eur("1.55"));
++        assertThat(FeePolicy.feeFor(eur("1234.57"))).isEqualTo(eur("18.52"));
++    }
++
++    @Test
++    void feeIsAtLeastFiftyCents() {
++        assertThat(FeePolicy.feeFor(eur("10.00"))).isEqualTo(eur("0.50"));
++        assertThat(FeePolicy.feeFor(eur("33.33"))).isEqualTo(eur("0.50"));
++    }
++
++    @Test
++    void minimumIsReachedExactly() {
++        assertThat(FeePolicy.feeFor(eur("33.34"))).isEqualTo(eur("0.50")); // 0.5001
++        assertThat(FeePolicy.feeFor(eur("34.00"))).isEqualTo(eur("0.51"));
++    }
++
++    @Test
++    void feeIsInTheOrderCurrency() {
++        assertThat(FeePolicy.feeFor(Money.of(new BigDecimal("200.00"), "USD")).currency().getCurrencyCode())
++                .isEqualTo("USD");
++    }
++
++    private static Money eur(String amount) {
++        return Money.of(new BigDecimal(amount), "EUR");
++    }
++}

@@ -25,9 +25,13 @@ Orders created via `POST /api/v1/orders`.
 | Fee computed in the controller | review R2 |
 | `Money` arithmetic producing more than 2 decimals, or `HALF_EVEN` | acceptance tests |
 | `payment.adapter.out` calling the order module | `ArchitectureOracle` rule 8 (only `adapter.in` may) |
+| **`payment` calling `order.application.port.in.GetOrderUseCase` at all**: `order` already depends on `payment` (it consumes `payment.application.event`), so this creates a module cycle. It is the most natural solution and passes rules 7/8 | `ArchitectureOracle` rule 9 (decided 2026-10-30: rules stay, this is a deliberate trap; see architecture.md open points) |
 
 ## Reference solution outline
-`payment.domain.FeePolicy` (1.5 %, half-up, minimum 0.50) with unit tests; `QuoteFeeUseCase` in
-`payment.application.port.in` taking the total and currency as plain values; `payment.adapter.in.web` controller
-gets the order through `order.application.port.in.GetOrderUseCase` (allowed: public API from `adapter.in`), then
-calls `QuoteFeeUseCase`; `OrderNotFoundException` mapped to `404` in the payment module's handler.
+Dependencies may only point from `order` to `payment` (rule 9). `payment.domain.FeePolicy` (1.5 %, half-up,
+minimum 0.50) with unit tests; `QuoteFeeUseCase` in `payment.application.port.in` taking the total and currency as
+plain values. The HTTP endpoint is served by `order.adapter.in.web`: it reads the order through its own
+`GetOrderUseCase` and calls `payment`'s `QuoteFeeUseCase` (public API, from `adapter.in`: rules 7/8 hold, no cycle).
+Raising the conflict instead of choosing this design is equally acceptable in review.
+(`benchmark/reference/T07-payment-fee.patch`.) Proven: the same controller placed in `payment.adapter.in.web`
+fails only `rule9_noCyclesBetweenModules`.

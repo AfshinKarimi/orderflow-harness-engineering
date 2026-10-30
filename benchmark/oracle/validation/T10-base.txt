@@ -1,0 +1,8 @@
+ok   ERROR   (expected FAILED/ERROR) T10DatabaseOutageOracleIT.databaseUnavailable(CapturedOutput)
+ok   FAILED  (expected FAILED/ERROR) T10ErrorResponsesOracleIT.unknownOrder
+ok   FAILED  (expected FAILED/ERROR) T10ErrorResponsesOracleIT.existingErrorsKeepTheirShapeAndGetACorrelationId
+ok   FAILED  (expected FAILED/ERROR) T10ErrorResponsesOracleIT.unsupportedMediaTypeAndMethod
+ok   FAILED  (expected FAILED/ERROR) T10ErrorResponsesOracleIT.callerCorrelationIdIsUsed
+ok   FAILED  (expected FAILED/ERROR) T10ErrorResponsesOracleIT.malformedJsonAndWrongTypes
+
+base: 6 task oracle tests, 6 test cases in total, 0 problem(s)

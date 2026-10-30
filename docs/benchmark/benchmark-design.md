@@ -116,7 +116,8 @@ agent's directory is never modified by the evaluation):
 1. `benchmark/scripts/prepare-oracle.sh` copies the hidden tests into the copy (package
    `com.orderflow.benchmark.oracle`): the task's tests, `ArchitectureOracleTest` (copy of rules 1–10 and 12),
    `SchemaOwnershipOracleIT`, `MigrationsUnchangedOracleTest` (base `V1`–`V5` byte-identical), and their own
-   containers. It restores `archunit.properties` and adds ArchUnit to `pom.xml` if missing (arm A).
+   containers, plus task resources (e.g. T09's signature snapshot). It restores `archunit.properties` and adds
+   ArchUnit to `pom.xml` if missing (arm A).
 2. Run `./mvnw -o verify` with the regression suite (the test files of the base commit, in the agent's current
    version: adapting a test is allowed, weakening it is measured separately), the task's acceptance tests
    and the architecture oracle. Checkstyle and coverage thresholds are **not** part of the score.

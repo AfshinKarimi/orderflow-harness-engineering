@@ -17,6 +17,9 @@ mkdir -p "$target_java"
 cp "$bench"/oracle/common/java/com/orderflow/benchmark/oracle/*.java "$target_java/"
 cp "$task_dir"/java/com/orderflow/benchmark/oracle/*.java "$target_java/"
 cp -R "$bench/oracle/common/resources/benchmark" "$work/src/test/resources/benchmark"
+if [[ -d "$task_dir/resources/benchmark" ]]; then
+  cp -R "$task_dir/resources/benchmark/." "$work/src/test/resources/benchmark/"
+fi
 
 # Same ArchUnit configuration as the base commit (arm A does not have this file).
 printf 'archRule.failOnEmptyShould=false\n' > "$work/src/test/resources/archunit.properties"
