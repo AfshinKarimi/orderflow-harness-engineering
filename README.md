@@ -42,6 +42,7 @@ Tests don't depend on a profile; Testcontainers supplies the datasource via `@Se
 | Method | Path | Result |
 |---|---|---|
 | `POST` | `/api/v1/orders` | `201` + `Location`; `400` `application/problem+json` on invalid input |
+| `GET` | `/api/v1/orders/{id}` | `200` with the order; `404` problem if unknown; `400` if the ID is not a UUID |
 
 ```bash
 curl -i -X POST localhost:8080/api/v1/orders -H 'Content-Type: application/json' \

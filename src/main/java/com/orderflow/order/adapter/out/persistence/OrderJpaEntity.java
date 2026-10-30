@@ -45,13 +45,15 @@ class OrderJpaEntity {
     protected OrderJpaEntity() {
     }
 
-    OrderJpaEntity(UUID id, String customerId, String status, String currency, Instant createdAt,
+    /** {@code version} is null for a new order; otherwise the version it was loaded with (optimistic lock check). */
+    OrderJpaEntity(UUID id, String customerId, String status, String currency, Instant createdAt, Long version,
                    List<OrderLineJpaEmbeddable> lines) {
         this.id = id;
         this.customerId = customerId;
         this.status = status;
         this.currency = currency;
         this.createdAt = createdAt;
+        this.version = version;
         this.lines = new ArrayList<>(lines);
     }
 

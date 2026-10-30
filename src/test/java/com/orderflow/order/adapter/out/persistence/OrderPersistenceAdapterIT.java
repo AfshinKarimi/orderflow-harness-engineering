@@ -53,4 +53,31 @@ class OrderPersistenceAdapterIT {
         assertThat(loaded.getLines().getFirst().getQuantity()).isEqualTo(2);
         assertThat(loaded.getLines().getFirst().getUnitPrice()).isEqualByComparingTo("19.99");
     }
+
+    @Test
+    void findByIdRestoresTheDomainOrder() {
+        Instant createdAt = Instant.parse("2026-10-30T12:00:00Z");
+        Order order = Order.create(OrderId.newId(), "c-1", List.of(
+                new OrderLine("p-2", 2, Money.of(new BigDecimal("19.99"), "EUR")),
+                new OrderLine("p-1", 1, Money.of(new BigDecimal("5"), "EUR"))), createdAt);
+        adapter.save(order);
+        entityManager.flush();
+        entityManager.clear();
+
+        Order restored = adapter.findById(order.id()).orElseThrow();
+
+        assertThat(restored.id()).isEqualTo(order.id());
+        assertThat(restored.customerId()).isEqualTo("c-1");
+        assertThat(restored.status()).isEqualTo(order.status());
+        assertThat(restored.createdAt()).isEqualTo(createdAt);
+        assertThat(restored.version()).isZero();
+        // NUMERIC(19,4) "19.9900" must come back as EUR money with scale 2, equal to the original
+        assertThat(restored.lines()).isEqualTo(order.lines());
+        assertThat(restored.total()).isEqualTo(order.total());
+    }
+
+    @Test
+    void findByIdReturnsEmptyForUnknownOrder() {
+        assertThat(adapter.findById(OrderId.newId())).isEmpty();
+    }
 }
