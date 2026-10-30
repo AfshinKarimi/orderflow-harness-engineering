@@ -1,0 +1,9 @@
+# Paths removed from the base commit to build arm A (minimal instructions).
+# CLAUDE.md and README.md are replaced by the files next to this list; pom.xml is changed as in pom-changes.md.
+.claude/
+.github/
+config/
+docs/
+scripts/
+src/test/java/com/orderflow/architecture/
+src/test/resources/archunit.properties
