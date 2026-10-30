@@ -5,9 +5,15 @@
   existing tests that create orders.
 
 ## Regression tests changed by this task
-Existing tests that `POST` an order without an address now correctly get `400`. The oracle replaces them with
-copies that add a valid `shippingAddress`: `CreateOrderIT`, `OrderControllerIT`, `ObservabilityIT`
-(only their request bodies change). The agent is expected to update these tests the same way.
+Existing tests that `POST` an order without an address now correctly get `400`.
+
+- **Replaced** (`oracle/T05-shipping-address/replace/`): `CreateOrderIT`, HTTP only, with a valid
+  `shippingAddress` added to each request body.
+- **Excluded** from scoring (`exclude.txt`): `OrderControllerIT` and `ObservabilityIT`. They construct
+  `CreateOrderCommand`/`OrderResult`, whose shape this task legitimately changes, so a fixed copy could not compile
+  against every correct solution.
+
+The agent is expected to update all of them; the weakened-tests metric still covers them.
 
 ## Oracle: acceptance tests (`T05ShippingAddressOracleIT`)
 | Test | Expectation |
@@ -30,6 +36,7 @@ copies that add a valid `shippingAddress`: `CreateOrderIT`, `OrderControllerIT`,
 | Existing tests deleted instead of updated | weakened-tests metric |
 
 ## Reference solution outline
-Value object `ShippingAddress` (domain, validates the four fields); nullable in `Order.restore`, required in
+(`benchmark/reference/T05-shipping-address.patch`) Value object `ShippingAddress` (domain, validates the four
+fields, country against `Locale.getISOCountries()`); nullable in `Order.restore`, required in
 `Order.create`; plain fields in `CreateOrderCommand`/`OrderResult`; nested DTO with Bean Validation; `V6` adds four
 nullable columns to `orders.orders`; mapper handles `null`; tests updated by adding the address.

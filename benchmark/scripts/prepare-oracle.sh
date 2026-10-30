@@ -26,6 +26,11 @@ if [[ -d "$task_dir/replace" ]]; then
   cp -R "$task_dir/replace/." "$work/"
 fi
 
+# Regression tests coupled to internals the task legitimately changes are not scored for that task.
+if [[ -f "$task_dir/exclude.txt" ]]; then
+  grep -v -E '^\s*(#|$)' "$task_dir/exclude.txt" | while read -r path; do rm -f "$work/$path"; done
+fi
+
 # The architecture oracle needs ArchUnit; arm A removed it from pom.xml.
 python3 -I - "$work/pom.xml" <<'PY'
 import re

@@ -1,0 +1,569 @@
+diff --git a/src/main/java/com/orderflow/order/adapter/in/web/OrderApiExceptionHandler.java b/src/main/java/com/orderflow/order/adapter/in/web/OrderApiExceptionHandler.java
+index 68d9b04..63adb42 100644
+--- a/src/main/java/com/orderflow/order/adapter/in/web/OrderApiExceptionHandler.java
++++ b/src/main/java/com/orderflow/order/adapter/in/web/OrderApiExceptionHandler.java
+@@ -1,6 +1,7 @@
+ package com.orderflow.order.adapter.in.web;
+ 
+ import com.orderflow.order.application.port.in.OrderNotFoundException;
++import com.orderflow.order.domain.InvalidOrderStateException;
+ import com.orderflow.shared.domain.DomainException;
+ import org.springframework.http.HttpHeaders;
+ import org.springframework.http.HttpStatus;
+@@ -30,6 +31,14 @@ class OrderApiExceptionHandler extends ResponseEntityExceptionHandler {
+         return problem;
+     }
+ 
++    /** The request is valid but conflicts with the order's current status (e.g. paying a paid order). */
++    @ExceptionHandler(InvalidOrderStateException.class)
++    ProblemDetail handleInvalidOrderState(InvalidOrderStateException exception) {
++        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
++        problem.setTitle("Order status does not allow this");
++        return problem;
++    }
++
+     @ExceptionHandler(OrderNotFoundException.class)
+     ProblemDetail handleOrderNotFound(OrderNotFoundException exception) {
+         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+diff --git a/src/main/java/com/orderflow/order/adapter/in/web/OrderController.java b/src/main/java/com/orderflow/order/adapter/in/web/OrderController.java
+index 077fb4b..f587ef1 100644
+--- a/src/main/java/com/orderflow/order/adapter/in/web/OrderController.java
++++ b/src/main/java/com/orderflow/order/adapter/in/web/OrderController.java
+@@ -3,13 +3,16 @@ package com.orderflow.order.adapter.in.web;
+ import com.orderflow.order.application.port.in.CreateOrderUseCase;
+ import com.orderflow.order.application.port.in.GetOrderUseCase;
+ import com.orderflow.order.application.port.in.OrderResult;
++import com.orderflow.order.application.port.in.RequestPaymentUseCase;
+ import jakarta.validation.Valid;
++import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.web.bind.annotation.GetMapping;
+ import org.springframework.web.bind.annotation.PathVariable;
+ import org.springframework.web.bind.annotation.PostMapping;
+ import org.springframework.web.bind.annotation.RequestBody;
+ import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.ResponseStatus;
+ import org.springframework.web.bind.annotation.RestController;
+ 
+ import java.net.URI;
+@@ -23,10 +26,13 @@ class OrderController {
+ 
+     private final CreateOrderUseCase createOrderUseCase;
+     private final GetOrderUseCase getOrderUseCase;
++    private final RequestPaymentUseCase requestPaymentUseCase;
+ 
+-    OrderController(CreateOrderUseCase createOrderUseCase, GetOrderUseCase getOrderUseCase) {
++    OrderController(CreateOrderUseCase createOrderUseCase, GetOrderUseCase getOrderUseCase,
++                    RequestPaymentUseCase requestPaymentUseCase) {
+         this.createOrderUseCase = createOrderUseCase;
+         this.getOrderUseCase = getOrderUseCase;
++        this.requestPaymentUseCase = requestPaymentUseCase;
+     }
+ 
+     @PostMapping
+@@ -40,4 +46,11 @@ class OrderController {
+     OrderResponse get(@PathVariable UUID orderId) {
+         return OrderResponse.from(getOrderUseCase.get(orderId));
+     }
++
++    /** 202: the payment itself happens asynchronously; its result arrives as an event. */
++    @PostMapping("/{orderId}/payment-requests")
++    @ResponseStatus(HttpStatus.ACCEPTED)
++    PaymentRequestResponse requestPayment(@PathVariable UUID orderId) {
++        return PaymentRequestResponse.from(requestPaymentUseCase.request(orderId));
++    }
+ }
+diff --git a/src/main/java/com/orderflow/order/adapter/in/web/PaymentRequestResponse.java b/src/main/java/com/orderflow/order/adapter/in/web/PaymentRequestResponse.java
+new file mode 100644
+index 0000000..e66b7dd
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/adapter/in/web/PaymentRequestResponse.java
+@@ -0,0 +1,12 @@
++package com.orderflow.order.adapter.in.web;
++
++import com.orderflow.order.application.port.in.RequestPaymentUseCase.PaymentAttempt;
++
++import java.util.UUID;
++
++record PaymentRequestResponse(UUID orderId, UUID attemptId, int attemptNumber) {
++
++    static PaymentRequestResponse from(PaymentAttempt attempt) {
++        return new PaymentRequestResponse(attempt.orderId(), attempt.attemptId(), attempt.attemptNumber());
++    }
++}
+diff --git a/src/main/java/com/orderflow/order/adapter/out/persistence/OrderJpaEntity.java b/src/main/java/com/orderflow/order/adapter/out/persistence/OrderJpaEntity.java
+index 396b1ae..b079c7b 100644
+--- a/src/main/java/com/orderflow/order/adapter/out/persistence/OrderJpaEntity.java
++++ b/src/main/java/com/orderflow/order/adapter/out/persistence/OrderJpaEntity.java
+@@ -31,6 +31,9 @@ class OrderJpaEntity {
+     @Column(name = "payment_attempt_id")
+     private UUID paymentAttemptId;
+ 
++    @Column(name = "payment_attempt_count", nullable = false)
++    private int paymentAttemptCount;
++
+     @Column(nullable = false, length = 3)
+     private String currency;
+ 
+@@ -49,12 +52,13 @@ class OrderJpaEntity {
+     }
+ 
+     /** {@code version} is null for a new order; otherwise the version it was loaded with (optimistic lock check). */
+-    OrderJpaEntity(UUID id, String customerId, String status, UUID paymentAttemptId, String currency,
+-                   Instant createdAt, Long version, List<OrderLineJpaEmbeddable> lines) {
++    OrderJpaEntity(UUID id, String customerId, String status, UUID paymentAttemptId, int paymentAttemptCount,
++                   String currency, Instant createdAt, Long version, List<OrderLineJpaEmbeddable> lines) {
+         this.id = id;
+         this.customerId = customerId;
+         this.status = status;
+         this.paymentAttemptId = paymentAttemptId;
++        this.paymentAttemptCount = paymentAttemptCount;
+         this.currency = currency;
+         this.createdAt = createdAt;
+         this.version = version;
+@@ -77,6 +81,10 @@ class OrderJpaEntity {
+         return paymentAttemptId;
+     }
+ 
++    int getPaymentAttemptCount() {
++        return paymentAttemptCount;
++    }
++
+     String getCurrency() {
+         return currency;
+     }
+diff --git a/src/main/java/com/orderflow/order/adapter/out/persistence/OrderMapper.java b/src/main/java/com/orderflow/order/adapter/out/persistence/OrderMapper.java
+index 5ad0270..4412ac1 100644
+--- a/src/main/java/com/orderflow/order/adapter/out/persistence/OrderMapper.java
++++ b/src/main/java/com/orderflow/order/adapter/out/persistence/OrderMapper.java
+@@ -18,6 +18,7 @@ final class OrderMapper {
+                 order.customerId(),
+                 order.status().name(),
+                 order.currentPaymentAttempt() == null ? null : order.currentPaymentAttempt().value(),
++                order.paymentAttempts(),
+                 order.currency().getCurrencyCode(),
+                 order.createdAt(),
+                 order.version(),
+@@ -39,6 +40,7 @@ final class OrderMapper {
+                         .toList(),
+                 OrderStatus.valueOf(entity.getStatus()),
+                 entity.getPaymentAttemptId() == null ? null : new PaymentAttemptId(entity.getPaymentAttemptId()),
++                entity.getPaymentAttemptCount(),
+                 entity.getCreatedAt(),
+                 entity.getVersion());
+     }
+diff --git a/src/main/java/com/orderflow/order/application/port/in/RequestPaymentUseCase.java b/src/main/java/com/orderflow/order/application/port/in/RequestPaymentUseCase.java
+new file mode 100644
+index 0000000..dd5a439
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/application/port/in/RequestPaymentUseCase.java
+@@ -0,0 +1,18 @@
++package com.orderflow.order.application.port.in;
++
++import java.util.UUID;
++
++public interface RequestPaymentUseCase {
++
++    /**
++     * Starts a payment attempt, or returns the current one while a payment is pending.
++     *
++     * @throws OrderNotFoundException if no order has this ID
++     * @throws com.orderflow.order.domain.InvalidOrderStateException if the order is paid or has no attempts left
++     */
++    PaymentAttempt request(UUID orderId);
++
++    /** @param attemptNumber 1 for the first attempt of the order */
++    record PaymentAttempt(UUID orderId, UUID attemptId, int attemptNumber) {
++    }
++}
+diff --git a/src/main/java/com/orderflow/order/application/service/RequestPaymentService.java b/src/main/java/com/orderflow/order/application/service/RequestPaymentService.java
+new file mode 100644
+index 0000000..57f7fe9
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/application/service/RequestPaymentService.java
+@@ -0,0 +1,39 @@
++package com.orderflow.order.application.service;
++
++import com.orderflow.order.application.port.in.OrderNotFoundException;
++import com.orderflow.order.application.port.in.RequestPaymentUseCase;
++import com.orderflow.order.application.port.out.OrderRepository;
++import com.orderflow.order.domain.Order;
++import com.orderflow.order.domain.OrderId;
++import com.orderflow.order.domain.PaymentAttemptId;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.annotation.Transactional;
++
++import java.util.UUID;
++
++/**
++ * Concurrent requests for the same order are safe: both load the same version, and optimistic locking rejects the
++ * second save, so at most one new attempt is stored.
++ */
++@Service
++@Transactional
++public class RequestPaymentService implements RequestPaymentUseCase {
++
++    private final OrderRepository orderRepository;
++
++    public RequestPaymentService(OrderRepository orderRepository) {
++        this.orderRepository = orderRepository;
++    }
++
++    @Override
++    public PaymentAttempt request(UUID orderId) {
++        Order order = orderRepository.findById(new OrderId(orderId))
++                .orElseThrow(() -> new OrderNotFoundException(orderId));
++        PaymentAttemptId before = order.currentPaymentAttempt();
++        PaymentAttemptId attempt = order.requestPayment();
++        if (!attempt.equals(before)) {
++            orderRepository.save(order);
++        }
++        return new PaymentAttempt(orderId, attempt.value(), order.paymentAttempts());
++    }
++}
+diff --git a/src/main/java/com/orderflow/order/domain/Order.java b/src/main/java/com/orderflow/order/domain/Order.java
+index 1cce11b..5acf90c 100644
+--- a/src/main/java/com/orderflow/order/domain/Order.java
++++ b/src/main/java/com/orderflow/order/domain/Order.java
+@@ -22,45 +22,63 @@ public class Order {
+     private final Long version;
+     private OrderStatus status;
+     private PaymentAttemptId currentPaymentAttempt;
++    private int paymentAttempts;
+ 
+     private Order(OrderId id, String customerId, List<OrderLine> lines, OrderStatus status,
+-                  PaymentAttemptId currentPaymentAttempt, Instant createdAt, Long version) {
++                  PaymentAttemptId currentPaymentAttempt, int paymentAttempts, Instant createdAt, Long version) {
+         this.id = id;
+         this.customerId = customerId;
+         this.lines = lines;
+         this.status = status;
+         this.currentPaymentAttempt = currentPaymentAttempt;
++        this.paymentAttempts = paymentAttempts;
+         this.createdAt = createdAt;
+         this.version = version;
+     }
+ 
+     public static Order create(OrderId id, String customerId, List<OrderLine> lines, Instant createdAt) {
+         return new Order(Objects.requireNonNull(id, "id"), requireCustomer(customerId), requireLines(lines),
+-                OrderStatus.CREATED, null, Objects.requireNonNull(createdAt, "createdAt"), null);
++                OrderStatus.CREATED, null, 0, Objects.requireNonNull(createdAt, "createdAt"), null);
+     }
+ 
+     /** Rebuilds a persisted order. Invariants are checked again, so corrupt data fails loudly. */
+     public static Order restore(OrderId id, String customerId, List<OrderLine> lines, OrderStatus status,
+-                                PaymentAttemptId currentPaymentAttempt, Instant createdAt, long version) {
++                                PaymentAttemptId currentPaymentAttempt, int paymentAttempts, Instant createdAt,
++                                long version) {
+         Objects.requireNonNull(status, "status");
+         if ((status == OrderStatus.CREATED) != (currentPaymentAttempt == null)) {
+             throw new InvalidOrderException(
+                     "Order in status " + status + " must " + (status == OrderStatus.CREATED ? "not " : "")
+                             + "have a payment attempt");
+         }
++        int minimum = status == OrderStatus.CREATED ? 0 : 1;
++        int maximum = status == OrderStatus.CREATED ? 0 : MAX_PAYMENT_ATTEMPTS;
++        if (paymentAttempts < minimum || paymentAttempts > maximum) {
++            throw new InvalidOrderException("Order in status " + status + " cannot have " + paymentAttempts
++                    + " payment attempts");
++        }
+         return new Order(Objects.requireNonNull(id, "id"), requireCustomer(customerId), requireLines(lines),
+-                status, currentPaymentAttempt, Objects.requireNonNull(createdAt, "createdAt"), version);
++                status, currentPaymentAttempt, paymentAttempts, Objects.requireNonNull(createdAt, "createdAt"),
++                version);
+     }
+ 
++    /** An order may start at most this many payment attempts. */
++    public static final int MAX_PAYMENT_ATTEMPTS = 3;
++
+     /**
+      * Starts a payment attempt. Idempotent while pending: a repeated request returns the current attempt.
+      *
+-     * @throws InvalidOrderStateException if the order is already paid
++     * @throws InvalidOrderStateException if the order is already paid, or all attempts have been used
+      */
+     public PaymentAttemptId requestPayment() {
+         return switch (status) {
+             case PAYMENT_PENDING -> currentPaymentAttempt;
+             case CREATED, PAYMENT_FAILED -> {
++                if (paymentAttempts >= MAX_PAYMENT_ATTEMPTS) {
++                    throw new InvalidOrderStateException("Order " + id.value() + " has used all "
++                            + MAX_PAYMENT_ATTEMPTS + " payment attempts");
++                }
++                paymentAttempts++;
+                 currentPaymentAttempt = PaymentAttemptId.newId();
+                 status = OrderStatus.PAYMENT_PENDING;
+                 yield currentPaymentAttempt;
+@@ -161,6 +179,11 @@ public class Order {
+         return lines.getFirst().unitPrice().currency();
+     }
+ 
++    /** Number of payment attempts started so far, including the current one. */
++    public int paymentAttempts() {
++        return paymentAttempts;
++    }
++
+     public OrderId id() {
+         return id;
+     }
+diff --git a/src/main/resources/db/migration/V6__add_payment_attempt_count.sql b/src/main/resources/db/migration/V6__add_payment_attempt_count.sql
+new file mode 100644
+index 0000000..e5c1882
+--- /dev/null
++++ b/src/main/resources/db/migration/V6__add_payment_attempt_count.sql
+@@ -0,0 +1,7 @@
++-- Payment attempts per order (T04, at most 3). Existing orders with an attempt have used one.
++ALTER TABLE orders.orders ADD COLUMN payment_attempt_count INT NOT NULL DEFAULT 0;
++
++UPDATE orders.orders SET payment_attempt_count = 1 WHERE payment_attempt_id IS NOT NULL;
++
++ALTER TABLE orders.orders ADD CONSTRAINT orders_payment_attempt_count_range
++    CHECK (payment_attempt_count BETWEEN 0 AND 3);
+diff --git a/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java b/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
+index d0ce5d0..5b70726 100644
+--- a/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
++++ b/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
+@@ -5,7 +5,10 @@ import com.orderflow.order.application.port.in.CreateOrderUseCase;
+ import com.orderflow.order.application.port.in.GetOrderUseCase;
+ import com.orderflow.order.application.port.in.OrderNotFoundException;
+ import com.orderflow.order.application.port.in.OrderResult;
++import com.orderflow.order.application.port.in.RequestPaymentUseCase;
++import com.orderflow.order.application.port.in.RequestPaymentUseCase.PaymentAttempt;
+ import com.orderflow.order.domain.InvalidOrderException;
++import com.orderflow.order.domain.InvalidOrderStateException;
+ import org.junit.jupiter.api.Test;
+ import org.springframework.beans.factory.annotation.Autowired;
+ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+@@ -43,6 +46,9 @@ class OrderControllerIT {
+     @MockitoBean
+     private GetOrderUseCase getOrderUseCase;
+ 
++    @MockitoBean
++    private RequestPaymentUseCase requestPaymentUseCase;
++
+     @Test
+     void returnsExistingOrder() throws Exception {
+         when(getOrderUseCase.get(ORDER_ID)).thenReturn(new OrderResult(
+@@ -69,6 +75,29 @@ class OrderControllerIT {
+                 .andExpect(jsonPath("$.detail").value("Order " + ORDER_ID + " not found"));
+     }
+ 
++    @Test
++    void requestingPaymentReturns202WithTheAttempt() throws Exception {
++        UUID attempt = UUID.fromString("7a1c0d2e-1111-4222-8333-944455556666");
++        when(requestPaymentUseCase.request(ORDER_ID)).thenReturn(new PaymentAttempt(ORDER_ID, attempt, 2));
++
++        mockMvc.perform(post("/api/v1/orders/" + ORDER_ID + "/payment-requests"))
++                .andExpect(status().isAccepted())
++                .andExpect(jsonPath("$.orderId").value(ORDER_ID.toString()))
++                .andExpect(jsonPath("$.attemptId").value(attempt.toString()))
++                .andExpect(jsonPath("$.attemptNumber").value(2));
++    }
++
++    @Test
++    void paymentRequestInConflictingStatusIs409Problem() throws Exception {
++        when(requestPaymentUseCase.request(ORDER_ID)).thenThrow(
++                new InvalidOrderStateException("Order " + ORDER_ID + " has used all 3 payment attempts"));
++
++        mockMvc.perform(post("/api/v1/orders/" + ORDER_ID + "/payment-requests"))
++                .andExpect(status().isConflict())
++                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
++                .andExpect(jsonPath("$.detail").value("Order " + ORDER_ID + " has used all 3 payment attempts"));
++    }
++
+     @Test
+     void returns400ForMalformedOrderId() throws Exception {
+         mockMvc.perform(get("/api/v1/orders/not-a-uuid"))
+diff --git a/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java b/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java
+index 4de67c4..42e4131 100644
+--- a/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java
++++ b/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java
+@@ -97,6 +97,7 @@ class OrderPersistenceAdapterIT {
+ 
+         assertThat(restored.status()).isEqualTo(OrderStatus.PAYMENT_PENDING);
+         assertThat(restored.currentPaymentAttempt()).isEqualTo(attempt);
++        assertThat(restored.paymentAttempts()).isEqualTo(1);
+     }
+ 
+     @Test
+diff --git a/src/test/java/com/orderflow/order/application/service/RequestPaymentServiceTest.java b/src/test/java/com/orderflow/order/application/service/RequestPaymentServiceTest.java
+new file mode 100644
+index 0000000..bf4179f
+--- /dev/null
++++ b/src/test/java/com/orderflow/order/application/service/RequestPaymentServiceTest.java
+@@ -0,0 +1,81 @@
++package com.orderflow.order.application.service;
++
++import com.orderflow.order.application.port.in.OrderNotFoundException;
++import com.orderflow.order.application.port.in.RequestPaymentUseCase.PaymentAttempt;
++import com.orderflow.order.domain.InvalidOrderStateException;
++import com.orderflow.order.domain.Order;
++import com.orderflow.order.domain.OrderId;
++import com.orderflow.order.domain.OrderLine;
++import com.orderflow.order.domain.OrderStatus;
++import com.orderflow.order.domain.PaymentAttemptId;
++import com.orderflow.shared.domain.Money;
++import org.junit.jupiter.api.BeforeEach;
++import org.junit.jupiter.api.Test;
++
++import java.math.BigDecimal;
++import java.time.Instant;
++import java.util.List;
++import java.util.UUID;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.assertj.core.api.Assertions.assertThatThrownBy;
++
++class RequestPaymentServiceTest {
++
++    private final InMemoryOrderRepository repository = new InMemoryOrderRepository();
++    private final RequestPaymentService service = new RequestPaymentService(repository);
++    private Order order;
++
++    @BeforeEach
++    void storedOrder() {
++        order = Order.create(OrderId.newId(), "c-1",
++                List.of(new OrderLine("p-1", 1, Money.of(new BigDecimal("5.00"), "EUR"))),
++                Instant.parse("2026-10-30T12:00:00Z"));
++        repository.save(order);
++        repository.saved.clear();
++    }
++
++    @Test
++    void startsTheFirstAttemptAndSaves() {
++        PaymentAttempt attempt = service.request(order.id().value());
++
++        assertThat(attempt.orderId()).isEqualTo(order.id().value());
++        assertThat(attempt.attemptNumber()).isEqualTo(1);
++        assertThat(repository.saved).singleElement().extracting(Order::status).isEqualTo(OrderStatus.PAYMENT_PENDING);
++    }
++
++    @Test
++    void pendingAttemptIsReturnedWithoutSaving() {
++        PaymentAttempt first = service.request(order.id().value());
++        repository.saved.clear();
++
++        assertThat(service.request(order.id().value())).isEqualTo(first);
++        assertThat(repository.saved).isEmpty();
++    }
++
++    @Test
++    void retryAfterFailureIsTheNextAttempt() {
++        PaymentAttempt first = service.request(order.id().value());
++        order.markPaymentFailed(new PaymentAttemptId(first.attemptId()));
++
++        PaymentAttempt second = service.request(order.id().value());
++
++        assertThat(second.attemptNumber()).isEqualTo(2);
++        assertThat(second.attemptId()).isNotEqualTo(first.attemptId());
++    }
++
++    @Test
++    void rejectedRequestIsNotSaved() {
++        order.markPaid(order.requestPayment());
++
++        assertThatThrownBy(() -> service.request(order.id().value())).isInstanceOf(InvalidOrderStateException.class);
++        assertThat(repository.saved).isEmpty();
++    }
++
++    @Test
++    void unknownOrderIsAnError() {
++        UUID unknown = UUID.randomUUID();
++
++        assertThatThrownBy(() -> service.request(unknown)).isInstanceOf(OrderNotFoundException.class);
++    }
++}
+diff --git a/src/test/java/com/orderflow/order/domain/OrderPaymentTest.java b/src/test/java/com/orderflow/order/domain/OrderPaymentTest.java
+index 6cbbe89..4dc52d9 100644
+--- a/src/test/java/com/orderflow/order/domain/OrderPaymentTest.java
++++ b/src/test/java/com/orderflow/order/domain/OrderPaymentTest.java
+@@ -19,6 +19,37 @@ class OrderPaymentTest {
+ 
+     // --- requestPayment ---
+ 
++    @Test
++    void attemptsAreCounted() {
++        assertThat(order.paymentAttempts()).isZero();
++
++        order.markPaymentFailed(order.requestPayment());
++        order.requestPayment();
++
++        assertThat(order.paymentAttempts()).isEqualTo(2);
++    }
++
++    @Test
++    void pendingRequestDoesNotUseAnotherAttempt() {
++        order.requestPayment();
++        order.requestPayment();
++
++        assertThat(order.paymentAttempts()).isEqualTo(1);
++    }
++
++    @Test
++    void thirdFailedAttemptIsTheLast() {
++        for (int i = 0; i < Order.MAX_PAYMENT_ATTEMPTS; i++) {
++            order.markPaymentFailed(order.requestPayment());
++        }
++
++        assertThatThrownBy(order::requestPayment)
++                .isInstanceOf(InvalidOrderStateException.class)
++                .hasMessageContaining("has used all 3 payment attempts");
++        assertThat(order.status()).isEqualTo(OrderStatus.PAYMENT_FAILED);
++        assertThat(order.paymentAttempts()).isEqualTo(3);
++    }
++
+     @Test
+     void requestingPaymentStartsAnAttempt() {
+         PaymentAttemptId attempt = order.requestPayment();
+diff --git a/src/test/java/com/orderflow/order/domain/OrderTest.java b/src/test/java/com/orderflow/order/domain/OrderTest.java
+index 2f3a210..6852b1c 100644
+--- a/src/test/java/com/orderflow/order/domain/OrderTest.java
++++ b/src/test/java/com/orderflow/order/domain/OrderTest.java
+@@ -31,7 +31,7 @@ class OrderTest {
+         PaymentAttemptId attempt = PaymentAttemptId.newId();
+ 
+         Order order = Order.restore(id, "c-1", List.of(line("p-1", 2, "5.00")), OrderStatus.PAYMENT_PENDING,
+-                attempt, NOW, 3);
++                attempt, 1, NOW, 3);
+ 
+         assertThat(order.id()).isEqualTo(id);
+         assertThat(order.status()).isEqualTo(OrderStatus.PAYMENT_PENDING);
+@@ -42,7 +42,7 @@ class OrderTest {
+ 
+     @Test
+     void restoreRejectsCorruptData() {
+-        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", List.of(), OrderStatus.CREATED, null, NOW, 0))
++        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", List.of(), OrderStatus.CREATED, null, 0, NOW, 0))
+                 .isInstanceOf(InvalidOrderException.class)
+                 .hasMessage("Order must have at least one line");
+     }
+@@ -52,14 +52,27 @@ class OrderTest {
+         List<OrderLine> lines = List.of(line("p-1", 1, "5.00"));
+ 
+         assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", lines, OrderStatus.CREATED,
+-                PaymentAttemptId.newId(), NOW, 0))
++                PaymentAttemptId.newId(), 1, NOW, 0))
+                 .isInstanceOf(InvalidOrderException.class)
+                 .hasMessage("Order in status CREATED must not have a payment attempt");
+-        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", lines, OrderStatus.PAID, null, NOW, 0))
++        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", lines, OrderStatus.PAID, null, 1, NOW, 0))
+                 .isInstanceOf(InvalidOrderException.class)
+                 .hasMessage("Order in status PAID must have a payment attempt");
+     }
+ 
++    @Test
++    void restoreRejectsImpossibleAttemptCounts() {
++        List<OrderLine> lines = List.of(line("p-1", 1, "5.00"));
++
++        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", lines, OrderStatus.CREATED, null, 1, NOW, 0))
++                .isInstanceOf(InvalidOrderException.class)
++                .hasMessage("Order in status CREATED cannot have 1 payment attempts");
++        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", lines, OrderStatus.PAYMENT_FAILED,
++                PaymentAttemptId.newId(), 4, NOW, 0))
++                .isInstanceOf(InvalidOrderException.class)
++                .hasMessage("Order in status PAYMENT_FAILED cannot have 4 payment attempts");
++    }
++
+     @Test
+     void totalIsSumOfLineTotals() {
+         Order order = Order.create(OrderId.newId(), "c-1",

@@ -121,7 +121,9 @@ agent's directory is never modified by the evaluation):
    version: adapting a test is allowed, weakening it is measured separately), the task's acceptance tests
    and the architecture oracle. Checkstyle and coverage thresholds are **not** part of the score.
    If a task deliberately changes a contract that existing tests encode (T05: the address becomes required),
-   `spec.md` names those tests and the oracle uses updated copies of them; no other regression test is replaced.
+   `spec.md` names those tests: HTTP-level tests are **replaced** by updated copies; tests that construct use case
+   types the task legitimately changes are **excluded** from scoring for that task (`exclude.txt`). No other
+   regression test is replaced or excluded.
 3. Collect the JUnit XML reports.
 
 A flaky infrastructure failure (Docker, port, timeout before any test ran) re-runs the evaluation once; it never

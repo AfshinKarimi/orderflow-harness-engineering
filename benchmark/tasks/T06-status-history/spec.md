@@ -26,7 +26,8 @@
 | Domain annotated for JPA | `ArchitectureOracle` rules 1 and 6 |
 
 ## Reference solution outline
-`Order` records `StatusChange(status, at)` entries on every transition (creation, `markPaid`, `markPaymentFailed`,
+(`benchmark/reference/T06-status-history.patch`) `Order` records `StatusChange(status, at)` entries on every
+transition (creation, `markPaid`, `markPaymentFailed`,
 `requestPayment`) using the injected clock's time passed in by the service; persisted as child rows
 (`orders.order_status_history`, FK to `orders.orders` in the same schema) in the same aggregate save;
 `V6` creates the table and backfills `CREATED` from `created_at`.

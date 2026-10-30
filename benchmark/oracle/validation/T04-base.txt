@@ -1,0 +1,9 @@
+ok   FAILED  (expected FAILED/ERROR) T04LegacyDataOracleIT.existingPendingOrderCountsAsFirstAttempt
+ok   FAILED  (expected FAILED/ERROR) T04PaymentAttemptsOracleIT.rejectsUnknownAndInvalidIds
+ok   FAILED  (expected FAILED/ERROR) T04PaymentAttemptsOracleIT.paidOrderIsRejected
+ok   FAILED  (expected FAILED/ERROR) T04PaymentAttemptsOracleIT.repeatedRequestReturnsTheCurrentAttempt
+ok   FAILED  (expected FAILED/ERROR) T04PaymentAttemptsOracleIT.fourthAttemptIsRejected
+ok   FAILED  (expected FAILED/ERROR) T04PaymentAttemptsOracleIT.failedAttemptCanBeRetried
+ok   FAILED  (expected FAILED/ERROR) T04PaymentAttemptsOracleIT.firstRequestStartsAttemptOne
+
+base: 7 task oracle tests, 7 test cases in total, 0 problem(s)

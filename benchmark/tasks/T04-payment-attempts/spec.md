@@ -31,7 +31,8 @@ Because every request reloads the order from the database, a counter that is not
 | Concurrent requests starting two attempts | review R5 (optimistic locking exists; should be relied on, not bypassed) |
 
 ## Reference solution outline
-`Order` gains `paymentAttempts` (int); `requestPayment()` increments it for a new attempt and throws a dedicated
-`DomainException` subclass at the limit (`409`); `RequestPaymentUseCase` returning plain types; `V6` adds
+(`benchmark/reference/T04-payment-attempts.patch`) `Order` gains `paymentAttempts` (int, validated in `restore`);
+`requestPayment()` increments it for a new attempt and throws `InvalidOrderStateException` at the limit (mapped to
+`409`); `RequestPaymentUseCase` returning plain types; `V6` adds
 `payment_attempt_count INT NOT NULL DEFAULT 0` and backfills `1` where `payment_attempt_id IS NOT NULL`, plus a
 CHECK `0..3`; domain tests for the boundary.

@@ -26,8 +26,9 @@ with the existing headers (`eventId`, `eventType`).
 | No domain tests for each source status | review R2/R6 |
 
 ## Reference solution outline
-`OrderStatus.CANCELLED`; `Order.cancel()` returning whether it changed, throwing a dedicated `DomainException`
-subclass for `PAYMENT_PENDING`/`PAID`; `CancelOrderUseCase`; `409` mapping for that exception; `markPaid`/
-`markPaymentFailed` treat `CANCELLED` like a stale result (no change) or reject it (dead letter), either is fine;
+(`benchmark/reference/T02-cancel-order.patch`) `OrderStatus.CANCELLED`; `Order.cancel()` returning whether it
+changed, throwing `InvalidOrderStateException` for `PAYMENT_PENDING`/`PAID`; `CancelOrderUseCase`; `409` mapping for
+`InvalidOrderStateException` only; a late failure for a cancelled order is ignored, a late success is rejected
+(dead-lettered: money was taken, a refund is needed); `restore` accepts `CANCELLED` with or without an attempt;
 `V6` replaces the CHECK with one that still requires an attempt for `PAYMENT_PENDING`/`PAID`/`PAYMENT_FAILED` and
 none for `CREATED`. Domain tests for every source status.

@@ -1,0 +1,4 @@
+# Regression tests coupled to use case types that T05 legitimately changes (CreateOrderCommand, OrderResult).
+# They are not scored for T05; the agent is still expected to adapt them.
+src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
+src/test/java/com/orderflow/ObservabilityIT.java
