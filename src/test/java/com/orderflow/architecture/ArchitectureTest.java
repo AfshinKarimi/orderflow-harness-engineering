@@ -12,7 +12,9 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 import org.springframework.data.repository.Repository;
 import org.springframework.stereotype.Service;
 
+import static com.tngtech.archunit.base.DescribedPredicate.not;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.equivalentTo;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
@@ -26,6 +28,7 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
 class ArchitectureTest {
 
     private static final String BASE = "com.orderflow";
+    private static final String PLATFORM = "platform";
 
     @ArchTest
     static final ArchRule rule1_domainDependsOnlyOnJdkAndDomain =
@@ -93,6 +96,14 @@ class ArchitectureTest {
                     .should().onlyDependOnClassesThat().resideInAnyPackage("java..", BASE + ".shared..")
                     .because("rule 10: shared is generic and depends on no business module");
 
+    @ArchTest
+    static final ArchRule rule12_platformDependsOnNoBusinessModule =
+            noClasses().that().resideInAPackage(BASE + ".platform..")
+                    .should().dependOnClassesThat(resideInAPackage(BASE + "..")
+                            .and(not(resideInAnyPackage(BASE + ".platform..", BASE + ".shared.."))))
+                    .because("rule 12: technical platform modules serve business modules and never depend on them "
+                            + "(ADR-0003)");
+
     private static ArchCondition<JavaClass> accessOtherModulesOnlyViaPublicApiFromInboundAdapters() {
         return new ArchCondition<>("depend on other modules only via their public API, from adapter.in") {
             @Override
@@ -102,6 +113,16 @@ class ArchitectureTest {
                     JavaClass target = dependency.getTargetClass().getBaseComponentType();
                     String targetModule = moduleOf(target);
                     if (targetModule == null || targetModule.equals(originModule) || targetModule.equals("shared")) {
+                        continue;
+                    }
+                    if (targetModule.equals(PLATFORM)) {
+                        // ADR-0003: business modules use only platform.messaging.api, and only from their adapters
+                        boolean toPlatformApi = isInPackage(target, BASE + ".platform.messaging.api");
+                        boolean fromAdapter = originModule != null
+                                && isInPackage(origin, BASE + "." + originModule + ".adapter");
+                        if (!toPlatformApi || !fromAdapter) {
+                            events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
+                        }
                         continue;
                     }
                     String targetApplication = BASE + "." + targetModule + ".application.";
