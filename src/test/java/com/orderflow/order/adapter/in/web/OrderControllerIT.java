@@ -2,6 +2,8 @@ package com.orderflow.order.adapter.in.web;
 
 import com.orderflow.order.application.port.in.CreateOrderCommand;
 import com.orderflow.order.application.port.in.CreateOrderUseCase;
+import com.orderflow.order.application.port.in.GetOrderUseCase;
+import com.orderflow.order.application.port.in.OrderNotFoundException;
 import com.orderflow.order.application.port.in.OrderResult;
 import com.orderflow.order.domain.InvalidOrderException;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -36,6 +39,43 @@ class OrderControllerIT {
 
     @MockitoBean
     private CreateOrderUseCase createOrderUseCase;
+
+    @MockitoBean
+    private GetOrderUseCase getOrderUseCase;
+
+    @Test
+    void returnsExistingOrder() throws Exception {
+        when(getOrderUseCase.get(ORDER_ID)).thenReturn(new OrderResult(
+                ORDER_ID, "c-1", "CREATED", "EUR", new BigDecimal("3.00"),
+                List.of(new OrderResult.Line("p-1", 2, new BigDecimal("1.50"), new BigDecimal("3.00"))),
+                Instant.parse("2026-10-30T12:00:00Z")));
+
+        mockMvc.perform(get("/api/v1/orders/" + ORDER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(ORDER_ID.toString()))
+                .andExpect(jsonPath("$.status").value("CREATED"))
+                .andExpect(jsonPath("$.totalAmount").value(3.00))
+                .andExpect(jsonPath("$.lines[0].lineTotal").value(3.00));
+    }
+
+    @Test
+    void returns404ProblemForUnknownOrder() throws Exception {
+        when(getOrderUseCase.get(ORDER_ID)).thenThrow(new OrderNotFoundException(ORDER_ID));
+
+        mockMvc.perform(get("/api/v1/orders/" + ORDER_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title").value("Order not found"))
+                .andExpect(jsonPath("$.detail").value("Order " + ORDER_ID + " not found"));
+    }
+
+    @Test
+    void returns400ForMalformedOrderId() throws Exception {
+        mockMvc.perform(get("/api/v1/orders/not-a-uuid"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(getOrderUseCase);
+    }
 
     @Test
     void createsOrderAndReturns201WithLocationAndBody() throws Exception {

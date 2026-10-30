@@ -1,5 +1,6 @@
 package com.orderflow.order.adapter.in.web;
 
+import com.orderflow.order.application.port.in.OrderNotFoundException;
 import com.orderflow.shared.domain.DomainException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -26,6 +27,13 @@ class OrderApiExceptionHandler extends ResponseEntityExceptionHandler {
     ProblemDetail handleDomainException(DomainException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
         problem.setTitle("Business rule violated");
+        return problem;
+    }
+
+    @ExceptionHandler(OrderNotFoundException.class)
+    ProblemDetail handleOrderNotFound(OrderNotFoundException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+        problem.setTitle("Order not found");
         return problem;
     }
 

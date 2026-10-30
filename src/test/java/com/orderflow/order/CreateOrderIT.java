@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -57,6 +58,22 @@ class CreateOrderIT {
                 .containsEntry("currency", "EUR");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM orders.order_lines WHERE order_id = ?", Integer.class, id)).isEqualTo(2);
+    }
+
+    @Test
+    void createdOrderCanBeReadBackViaLocation() throws Exception {
+        String location = mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"customerId":"c-7","currency":"EUR",
+                         "lines":[{"productId":"p-1","quantity":3,"unitPrice":1.10}]}"""))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+
+        mockMvc.perform(get(location))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.customerId").value("c-7"))
+                .andExpect(jsonPath("$.status").value("CREATED"))
+                .andExpect(jsonPath("$.totalAmount").value(3.30))
+                .andExpect(jsonPath("$.lines[0].unitPrice").value(1.10));
     }
 
     @Test

@@ -2,7 +2,6 @@ package com.orderflow.order.application.service;
 
 import com.orderflow.order.application.port.in.CreateOrderCommand;
 import com.orderflow.order.application.port.in.OrderResult;
-import com.orderflow.order.application.port.out.OrderRepository;
 import com.orderflow.order.domain.InvalidOrderException;
 import com.orderflow.order.domain.Order;
 import com.orderflow.order.domain.OrderStatus;
@@ -13,7 +12,6 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,15 +73,5 @@ class CreateOrderServiceTest {
                 .hasMessage("Order must have at least one line");
 
         assertThat(repository.saved).isEmpty();
-    }
-
-    private static class InMemoryOrderRepository implements OrderRepository {
-
-        private final List<Order> saved = new ArrayList<>();
-
-        @Override
-        public void save(Order order) {
-            saved.add(order);
-        }
     }
 }
