@@ -11,6 +11,7 @@ Rationale: [ADR-0001](../adr/0001-modular-monolith-with-hexagonal-architecture.m
 | `order` | Order lifecycle: placing, confirming, cancelling orders |
 | `payment` | Payment lifecycle: requesting, completing, failing payments |
 | `shared` | Shared kernel: small, stable, generic value types only (e.g. `Money`) |
+| `platform.observability` | Technical module: correlation ID (HTTP filter, logging context) used by `platform.messaging` |
 | `platform.messaging` | Technical module: transactional outbox, Kafka relay, consumer deduplication ([ADR-0003](../adr/0003-transactional-outbox-and-kafka.md)). Public API: `platform.messaging.api` |
 
 ## Package structure
@@ -31,12 +32,16 @@ com.orderflow
 │       ├── in.web                 REST controllers, request/response DTOs
 │       ├── in.event               listeners for other modules' integration events
 │       ├── out.persistence        JPA entities, Spring Data repositories, mappers
+│       ├── out.metrics            Micrometer implementation of the module's metrics port
 │       └── out.event              event publisher implementation
 ├── payment                        same layout as order
 └── platform
-    └── messaging
-        ├── api                    OutboxWriter: the only types business modules may use (public API)
-        └── outbox                 JDBC outbox writer, Kafka relay, scheduling, metrics (internal)
+    ├── messaging
+    │   ├── api                    OutboxWriter, ProcessedEvents: the only types business modules may use (public API)
+    │   ├── outbox                 JDBC outbox writer, Kafka relay, scheduling, metrics (internal)
+    │   └── inbox                  consumer deduplication store, listener retry + dead-letter handling,
+    │                              logging context of consumed records (internal)
+    └── observability              correlation ID: HTTP filter, logging-context key
 ```
 
 Sub-packages are created when the first class needs them; empty layers are not scaffolded.
@@ -131,4 +136,6 @@ sequenceDiagram
 ## Known open points
 
 - **Reliable event delivery:** resolved by the transactional outbox (ADR-0003).
-  Remaining: outbox cleanup and retention, a dead-letter strategy, alerting on `orderflow.outbox.pending`.
+  Remaining: outbox cleanup and retention, a way to inspect and replay `<topic>.DLT` records.
+- **Alerting:** metrics exist and alert rules are proposed ([observability.md](../operations/observability.md)), but no
+  monitoring stack is deployed yet.

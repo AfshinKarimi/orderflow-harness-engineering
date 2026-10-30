@@ -26,22 +26,38 @@ class OrderTest {
     }
 
     @Test
-    void restoreKeepsPersistedStatusAndVersion() {
+    void restoreKeepsPersistedStatusAttemptAndVersion() {
         OrderId id = OrderId.newId();
+        PaymentAttemptId attempt = PaymentAttemptId.newId();
 
-        Order order = Order.restore(id, "c-1", List.of(line("p-1", 2, "5.00")), OrderStatus.CREATED, NOW, 3);
+        Order order = Order.restore(id, "c-1", List.of(line("p-1", 2, "5.00")), OrderStatus.PAYMENT_PENDING,
+                attempt, NOW, 3);
 
         assertThat(order.id()).isEqualTo(id);
-        assertThat(order.status()).isEqualTo(OrderStatus.CREATED);
+        assertThat(order.status()).isEqualTo(OrderStatus.PAYMENT_PENDING);
+        assertThat(order.currentPaymentAttempt()).isEqualTo(attempt);
         assertThat(order.version()).isEqualTo(3L);
         assertThat(order.total()).isEqualTo(eur("10.00"));
     }
 
     @Test
     void restoreRejectsCorruptData() {
-        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", List.of(), OrderStatus.CREATED, NOW, 0))
+        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", List.of(), OrderStatus.CREATED, null, NOW, 0))
                 .isInstanceOf(InvalidOrderException.class)
                 .hasMessage("Order must have at least one line");
+    }
+
+    @Test
+    void restoreRejectsStatusAndAttemptThatDoNotMatch() {
+        List<OrderLine> lines = List.of(line("p-1", 1, "5.00"));
+
+        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", lines, OrderStatus.CREATED,
+                PaymentAttemptId.newId(), NOW, 0))
+                .isInstanceOf(InvalidOrderException.class)
+                .hasMessage("Order in status CREATED must not have a payment attempt");
+        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", lines, OrderStatus.PAID, null, NOW, 0))
+                .isInstanceOf(InvalidOrderException.class)
+                .hasMessage("Order in status PAID must have a payment attempt");
     }
 
     @Test

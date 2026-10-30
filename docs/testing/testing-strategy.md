@@ -19,6 +19,10 @@ Why these tools:
 - **Mockito only at the web slice.** There it isolates HTTP behaviour from the use case, and interaction checks (`verifyNoInteractions`) are the point. For ports in service tests, fakes give clearer state-based assertions and survive refactoring better.
 - **Testcontainers, never H2.** Flyway SQL, `NUMERIC` scale, `TIMESTAMPTZ` and `CHECK` constraints are PostgreSQL behaviour. Every Spring context in tests also runs Hibernate `ddl-auto: validate` against the Flyway schema, so entity/schema drift fails every IT.
 
+Metrics: services assert what they report through a fake metrics port (unit); counting after commit, the Prometheus
+output and the cardinality guard are tested in `ObservabilityIT`, and consumer/outbox metrics inside their existing
+scenario ITs ([observability.md](../operations/observability.md)).
+
 ## What each layer must *not* re-test
 - Controllers don't re-test domain rules: one representative `DomainException` → 400 mapping is enough.
 - Repository tests don't re-test validation: the domain guarantees valid objects.

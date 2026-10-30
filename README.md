@@ -4,6 +4,7 @@ AI-assisted order processing platform. Modular monolith following Hexagonal Arch
 
 - Architecture: [docs/architecture/architecture.md](docs/architecture/architecture.md)
 - Decisions: [docs/adr](docs/adr)
+- Metrics, dashboard, logging: [docs/operations/observability.md](docs/operations/observability.md) · troubleshooting: [runbook](docs/operations/runbook.md)
 
 ## Stack
 Java 21 · Spring Boot 4.1 · Maven (wrapper) · PostgreSQL 17 · Flyway · Kafka 4.2 (transactional outbox) · Testcontainers
@@ -26,6 +27,7 @@ Test naming: `*Test` runs without Spring/Docker (Surefire); `*IT` needs a Spring
 ## Run locally
 ```bash
 docker compose up -d          # PostgreSQL on localhost:5432, Kafka on localhost:9092
+                              # add --profile observability for Prometheus (:9090) and Grafana (:3000)
 ./mvnw spring-boot:run        # uses the "local" profile by default
 curl localhost:8080/actuator/health
 ```
@@ -34,13 +36,13 @@ curl localhost:8080/actuator/health
 | Profile | Purpose | Database and Kafka |
 |---|---|---|
 | `local` (default) | Developer machine | `compose.yaml` PostgreSQL and Kafka |
-| `prod` | Deployed environments | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `KAFKA_BOOTSTRAP_SERVERS` env vars (required) |
+| `prod` | Deployed environments | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `KAFKA_BOOTSTRAP_SERVERS` env vars (required); Actuator on port `MANAGEMENT_PORT` (default 8081) |
 
 Tests run with the default `local` profile, but Testcontainers replaces the database and Kafka connections via
 `@ServiceConnection`. Test-only overrides (outbox relay disabled, short Kafka timeouts) live in
 `src/test/resources/config/application.yml`.
 
-Outbox backlog metric: `orderflow.outbox.pending` (events not yet published to Kafka).
+Consumed events that keep failing are moved to `<topic>.DLT` (e.g. `orderflow.payment.events.DLT`) after 3 attempts.
 
 ## API
 | Method | Path | Result |
@@ -53,9 +55,11 @@ curl -i -X POST localhost:8080/api/v1/orders -H 'Content-Type: application/json'
   -d '{"customerId":"c-1","currency":"EUR","lines":[{"productId":"p-1","quantity":2,"unitPrice":19.99}]}'
 ```
 
-## Health
+## Health and metrics
 - `/actuator/health`: overall status (details shown only in `local`)
 - `/actuator/health/liveness`, `/actuator/health/readiness`: probe endpoints
+- `/actuator/prometheus`: Prometheus scrape endpoint; `/actuator/metrics`: browsable list
+- In `prod` these are served on the management port (8081), not the API port.
 
 ## Database migrations
 Flyway owns the schema (`src/main/resources/db/migration`); Hibernate runs with `ddl-auto: validate`.

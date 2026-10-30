@@ -6,6 +6,10 @@ orderflow:
       # Tests trigger the relay explicitly so outcomes are deterministic.
       enabled: false
       send-timeout: 8s
+  kafka:
+    consumer:
+      # Same 3 attempts as production, shorter pause to keep retry tests fast.
+      backoff: 200ms
 
 spring:
   kafka:

@@ -22,8 +22,9 @@ class CreateOrderServiceTest {
     private static final Instant NOW = Instant.parse("2026-10-30T12:00:00Z");
 
     private final InMemoryOrderRepository repository = new InMemoryOrderRepository();
+    private final RecordingOrderMetrics metrics = new RecordingOrderMetrics();
     private final CreateOrderService service =
-            new CreateOrderService(repository, Clock.fixed(NOW, ZoneOffset.UTC));
+            new CreateOrderService(repository, metrics, Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     void createsAndSavesOrder() {
@@ -32,6 +33,7 @@ class CreateOrderServiceTest {
                 new CreateOrderCommand.Line("p-2", 1, new BigDecimal("5")))));
 
         assertThat(repository.saved).hasSize(1);
+        assertThat(metrics.recorded).containsExactly("orderCreated");
         Order saved = repository.saved.getFirst();
         assertThat(saved.status()).isEqualTo(OrderStatus.CREATED);
         assertThat(saved.createdAt()).isEqualTo(NOW);
@@ -64,6 +66,7 @@ class CreateOrderServiceTest {
                 .isInstanceOf(InvalidMoneyException.class);
 
         assertThat(repository.saved).isEmpty();
+        assertThat(metrics.recorded).isEmpty();
     }
 
     @Test

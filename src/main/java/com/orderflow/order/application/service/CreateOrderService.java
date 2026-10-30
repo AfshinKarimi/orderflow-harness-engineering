@@ -3,6 +3,7 @@ package com.orderflow.order.application.service;
 import com.orderflow.order.application.port.in.CreateOrderCommand;
 import com.orderflow.order.application.port.in.CreateOrderUseCase;
 import com.orderflow.order.application.port.in.OrderResult;
+import com.orderflow.order.application.port.out.OrderMetrics;
 import com.orderflow.order.application.port.out.OrderRepository;
 import com.orderflow.order.domain.Order;
 import com.orderflow.order.domain.OrderId;
@@ -20,10 +21,12 @@ import java.util.Objects;
 public class CreateOrderService implements CreateOrderUseCase {
 
     private final OrderRepository orderRepository;
+    private final OrderMetrics metrics;
     private final Clock clock;
 
-    public CreateOrderService(OrderRepository orderRepository, Clock clock) {
+    public CreateOrderService(OrderRepository orderRepository, OrderMetrics metrics, Clock clock) {
         this.orderRepository = orderRepository;
+        this.metrics = metrics;
         this.clock = clock;
     }
 
@@ -39,6 +42,7 @@ public class CreateOrderService implements CreateOrderUseCase {
 
         Order order = Order.create(OrderId.newId(), command.customerId(), lines, clock.instant());
         orderRepository.save(order);
+        metrics.orderCreated();
         return OrderResult.from(order);
     }
 }

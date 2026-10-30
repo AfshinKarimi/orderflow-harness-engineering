@@ -17,5 +17,33 @@ services:
     ports:
       - "9092:9092"
 
+  # Monitoring, opt-in: docker compose --profile observability up -d   (docs/operations/observability.md)
+  # Scrapes the app running on the host (./mvnw spring-boot:run) on port 8080.
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    profiles: [observability]
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # needed on Linux; built in on Docker Desktop
+    volumes:
+      - ./ops/prometheus:/etc/prometheus:ro
+
+  grafana:
+    image: grafana/grafana:13.2.5
+    profiles: [observability]
+    ports:
+      - "3000:3000"
+    environment:
+      # Local only: anonymous read access, admin/admin for editing.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
 volumes:
   postgres-data:

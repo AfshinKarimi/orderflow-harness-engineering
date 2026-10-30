@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -109,6 +110,11 @@ class OutboxRelayIT {
         assertThat(record.value()).contains("\"orderId\"").contains("\"PAID\"");
         assertThat(pendingCount()).isZero();
         assertThat(relay.publishPending()).as("already published events are not sent again").isZero();
+
+        // The publish delay includes the time the event sat in the outbox during the "crash" (>= 2 s above).
+        var delay = meterRegistry.get("orderflow.outbox.publish.delay").tag("topic", topic).timer();
+        assertThat(delay.count()).isEqualTo(1);
+        assertThat(delay.totalTime(TimeUnit.MILLISECONDS)).isGreaterThanOrEqualTo(2000);
     }
 
     /** Scenario: Kafka is temporarily unavailable. */
@@ -127,6 +133,8 @@ class OutboxRelayIT {
             assertThat(row.get("attempts")).isEqualTo(1);
             assertThat((String) row.get("last_error")).isNotBlank();
             assertThat(meterRegistry.get("orderflow.outbox.pending").gauge().value()).isEqualTo(1.0);
+            assertThat(meterRegistry.get("orderflow.outbox.publish.failures").tag("topic", topic).counter().count())
+                    .isEqualTo(1.0);
         } finally {
             docker.unpauseContainerCmd(kafka.getContainerId()).exec();
         }

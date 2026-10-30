@@ -28,6 +28,9 @@ class OrderJpaEntity {
     @Column(nullable = false, length = 20)
     private String status;
 
+    @Column(name = "payment_attempt_id")
+    private UUID paymentAttemptId;
+
     @Column(nullable = false, length = 3)
     private String currency;
 
@@ -46,11 +49,12 @@ class OrderJpaEntity {
     }
 
     /** {@code version} is null for a new order; otherwise the version it was loaded with (optimistic lock check). */
-    OrderJpaEntity(UUID id, String customerId, String status, String currency, Instant createdAt, Long version,
-                   List<OrderLineJpaEmbeddable> lines) {
+    OrderJpaEntity(UUID id, String customerId, String status, UUID paymentAttemptId, String currency,
+                   Instant createdAt, Long version, List<OrderLineJpaEmbeddable> lines) {
         this.id = id;
         this.customerId = customerId;
         this.status = status;
+        this.paymentAttemptId = paymentAttemptId;
         this.currency = currency;
         this.createdAt = createdAt;
         this.version = version;
@@ -67,6 +71,10 @@ class OrderJpaEntity {
 
     String getStatus() {
         return status;
+    }
+
+    UUID getPaymentAttemptId() {
+        return paymentAttemptId;
     }
 
     String getCurrency() {

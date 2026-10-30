@@ -25,10 +25,15 @@ A state change and the event announcing it must be atomic, without a distributed
 4. **Delivery guarantee: at-least-once.** A crash after the broker acknowledgement but before `published_at` is
    committed re-sends the event. Every message carries a stable `eventId` header (the outbox row ID).
 5. **Consumers are idempotent.**
-   - They record `(eventId, consumer)` in `processed_events` in the same transaction as their business update,
-     and skip events already recorded.
+   - They record `(eventId, consumer)` in `messaging.processed_events` (`INSERT … ON CONFLICT DO NOTHING`) in the
+     **same transaction** as their business update, and skip events already recorded.
+   - The transaction is the **use case's** transaction (dedup goes through a `port.out`); the listener only translates
+     the record and holds no transaction.
    - Domain transitions are idempotent as well (ADR-0002).
-   - The Kafka offset is committed after that transaction.
+   - The Kafka offset is committed per record, only after that transaction committed (`ack-mode: record`).
+   - **Failures:** the transaction rolls back, including the dedup row, and the record is retried (3 attempts, 1 s
+     apart). After the last attempt it goes to `<topic>.DLT`. Business-rule violations, unreadable JSON and missing
+     headers skip the retries.
 6. **Kafka record key** = aggregate ID (e.g. the order ID), so events for one aggregate keep their order within a partition.
 7. **Module placement.** New technical module `com.orderflow.platform.messaging` with its own `messaging` schema.
    - Business modules use only `platform.messaging.api`, and only from their adapters, behind their own `port.out` / `adapter.in`.

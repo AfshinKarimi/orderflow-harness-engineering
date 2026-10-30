@@ -4,6 +4,7 @@ import com.orderflow.order.domain.Order;
 import com.orderflow.order.domain.OrderId;
 import com.orderflow.order.domain.OrderLine;
 import com.orderflow.order.domain.OrderStatus;
+import com.orderflow.order.domain.PaymentAttemptId;
 import com.orderflow.shared.domain.Money;
 
 final class OrderMapper {
@@ -16,6 +17,7 @@ final class OrderMapper {
                 order.id().value(),
                 order.customerId(),
                 order.status().name(),
+                order.currentPaymentAttempt() == null ? null : order.currentPaymentAttempt().value(),
                 order.currency().getCurrencyCode(),
                 order.createdAt(),
                 order.version(),
@@ -36,6 +38,7 @@ final class OrderMapper {
                                 Money.of(line.getUnitPrice(), entity.getCurrency())))
                         .toList(),
                 OrderStatus.valueOf(entity.getStatus()),
+                entity.getPaymentAttemptId() == null ? null : new PaymentAttemptId(entity.getPaymentAttemptId()),
                 entity.getCreatedAt(),
                 entity.getVersion());
     }

@@ -20,8 +20,23 @@ spring:
         request.timeout.ms: 5000
         delivery.timeout.ms: 10000
         max.block.ms: 5000
+    consumer:
+      # A new consumer group must not skip events published before it first connected.
+      auto-offset-reset: earliest
+    listener:
+      # Commit each record's offset only after the listener returned successfully (at-least-once).
+      ack-mode: record
+
+logging:
+  pattern:
+    # Readable console lines carry the correlation and event IDs; prod logs JSON instead (application-prod.yml).
+    correlation: "[%X{correlationId:-} %X{eventId:-}] "
 
 orderflow:
+  kafka:
+    consumer:
+      attempts: 3
+      backoff: 1s
   outbox:
     relay:
       enabled: true
@@ -33,7 +48,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
+  metrics:
+    # Low-cardinality common tag; never add per-order or per-customer tags (docs/operations/observability.md).
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      # Histogram buckets so p95/p99 latency can be computed and aggregated across instances.
+      percentiles-histogram:
+        http.server.requests: true
+        spring.kafka.listener: true
   endpoint:
     health:
       probes:

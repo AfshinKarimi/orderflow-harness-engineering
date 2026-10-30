@@ -8,6 +8,15 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
 management:
+  # Actuator (incl. /actuator/prometheus) on its own port, reachable only from inside the cluster network.
+  server:
+    port: ${MANAGEMENT_PORT:8081}
   endpoint:
     health:
       show-details: never
+
+logging:
+  structured:
+    format:
+      # One JSON object per line; MDC entries (correlationId, eventId, eventType) become top-level fields.
+      console: logstash
