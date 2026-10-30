@@ -1,0 +1,17 @@
+# Build
+target/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Local env / logs
+.env
+*.log
+logs/
+# Quality gate execution logs kept as engineering evidence
+!docs/process/evidence/**/*.log

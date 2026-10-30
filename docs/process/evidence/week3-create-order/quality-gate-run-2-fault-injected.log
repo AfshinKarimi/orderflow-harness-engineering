@@ -1,0 +1,375 @@
+# run 2 | 2026-10-30T14:00:20Z | DELIBERATE FAULT INJECTION: OrderMapper drops all lines (.limit(0))
+
+==> Selected JDK 21: /Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home
+
+==> [compile] ./mvnw -B -ntp clean test-compile
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.5.0:clean (default-clean) @ orderflow ---
+[INFO] Deleting ~/orderflow-harness-engineering/target
+[INFO] 
+[INFO] --- resources:3.5.0:resources (default-resources) @ orderflow ---
+[INFO] Copying 3 resources from src/main/resources to target/classes
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.15.0:compile (default-compile) @ orderflow ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 24 source files with javac [debug parameters release 21] to target/classes
+[INFO] 
+[INFO] --- resources:3.5.0:testResources (default-testResources) @ orderflow ---
+[INFO] Copying 1 resource from src/test/resources to target/test-classes
+[INFO] 
+[INFO] --- compiler:3.15.0:testCompile (default-testCompile) @ orderflow ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 9 source files with javac [debug parameters release 21] to target/test-classes
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  1.215 s
+[INFO] Finished at: 2026-10-30T15:00:22+01:00
+[INFO] ------------------------------------------------------------------------
+
+==> [unit] ./mvnw -B -ntp surefire:test -Dtest=!ArchitectureTest,!*IT
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- surefire:3.5.6:test (default-cli) @ orderflow ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+15:00:24.080 [main] INFO com.tngtech.archunit.ArchConfiguration -- Reading ArchUnit properties from file:~/orderflow-harness-engineering/target/test-classes/archunit.properties
+[INFO] Running com.orderflow.order.application.service.CreateOrderServiceTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.059 s -- in com.orderflow.order.application.service.CreateOrderServiceTest
+[INFO] Running com.orderflow.order.domain.OrderTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s -- in com.orderflow.order.domain.OrderTest
+[INFO] Running com.orderflow.shared.domain.MoneyTest
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in com.orderflow.shared.domain.MoneyTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 23, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  0.786 s
+[INFO] Finished at: 2026-10-30T15:00:24+01:00
+[INFO] ------------------------------------------------------------------------
+
+==> [architecture] ./mvnw -B -ntp surefire:test -Dtest=ArchitectureTest
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- surefire:3.5.6:test (default-cli) @ orderflow ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+15:00:25.491 [main] INFO com.tngtech.archunit.ArchConfiguration -- Reading ArchUnit properties from file:~/orderflow-harness-engineering/target/test-classes/archunit.properties
+[INFO] Running com.orderflow.architecture.ArchitectureTest
+15:00:25.522 [main] INFO com.tngtech.archunit.core.PluginLoader -- Detected Java version 21.0.5
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.502 s -- in com.orderflow.architecture.ArchitectureTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  1.172 s
+[INFO] Finished at: 2026-10-30T15:00:26+01:00
+[INFO] ------------------------------------------------------------------------
+
+==> [integration] ./mvnw -B -ntp failsafe:integration-test failsafe:verify
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- failsafe:3.5.6:integration-test (default-cli) @ orderflow ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+15:00:27.539 [main] INFO com.tngtech.archunit.ArchConfiguration -- Reading ArchUnit properties from file:~/orderflow-harness-engineering/target/test-classes/archunit.properties
+[INFO] Running com.orderflow.order.CreateOrderIT
+15:00:27.641 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.orderflow.order.CreateOrderIT]: CreateOrderIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+15:00:27.695 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.order.CreateOrderIT
+15:00:27.722 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.orderflow.order.CreateOrderIT]: CreateOrderIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+15:00:27.724 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.order.CreateOrderIT
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.2)
+
+2026-10-30T15:00:27.865+01:00  INFO 14582 --- [orderflow] [           main] com.orderflow.order.CreateOrderIT        : Starting CreateOrderIT using Java 21.0.5 with PID 14582 (started by afshin in ~/orderflow-harness-engineering)
+2026-10-30T15:00:27.865+01:00  INFO 14582 --- [orderflow] [           main] com.orderflow.order.CreateOrderIT        : No active profile set, falling back to 1 default profile: "local"
+2026-10-30T15:00:28.146+01:00  INFO 14582 --- [orderflow] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-10-30T15:00:28.165+01:00  INFO 14582 --- [orderflow] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 15 ms. Found 1 JPA repository interface.
+2026-10-30T15:00:28.324+01:00  INFO 14582 --- [orderflow] [           main] org.testcontainers.images.PullPolicy     : Image pull policy will be performed by: DefaultPullPolicy()
+2026-10-30T15:00:28.325+01:00  INFO 14582 --- [orderflow] [           main] o.t.utility.ImageNameSubstitutor         : Image name substitution will be performed by: DefaultImageNameSubstitutor (composite of 'ConfigurationFileImageNameSubstitutor' and 'PrefixingImageNameSubstitutor')
+2026-10-30T15:00:28.333+01:00  INFO 14582 --- [orderflow] [           main] org.testcontainers.DockerClientFactory   : Testcontainers version: 2.0.5
+2026-10-30T15:00:28.428+01:00  INFO 14582 --- [orderflow] [           main] o.t.d.DockerClientProviderStrategy       : Loaded org.testcontainers.dockerclient.UnixSocketClientProviderStrategy from ~/.testcontainers.properties, will try it first
+2026-10-30T15:00:28.587+01:00  INFO 14582 --- [orderflow] [           main] o.t.d.DockerClientProviderStrategy       : Found Docker environment with local Unix socket (unix:///var/run/docker.sock)
+2026-10-30T15:00:28.588+01:00  INFO 14582 --- [orderflow] [           main] org.testcontainers.DockerClientFactory   : Docker host IP address is localhost
+2026-10-30T15:00:28.599+01:00  INFO 14582 --- [orderflow] [           main] org.testcontainers.DockerClientFactory   : Connected to docker: 
+  Server Version: 27.3.1
+  API Version: 1.47
+  Operating System: Docker Desktop
+  Total Memory: 7836 MB
+  Labels: 
+    com.docker.desktop.address=unix://~/Library/Containers/com.docker.docker/Data/docker-cli.sock
+2026-10-30T15:00:28.617+01:00  INFO 14582 --- [orderflow] [           main] tc.testcontainers/ryuk:0.14.0            : Creating container for image: testcontainers/ryuk:0.14.0
+2026-10-30T15:00:28.827+01:00  INFO 14582 --- [orderflow] [           main] tc.testcontainers/ryuk:0.14.0            : Container testcontainers/ryuk:0.14.0 is starting: 7557e7943d29dd8338348e967ef9f9220206d0b905118924714b9fef50309a81
+2026-10-30T15:00:29.057+01:00  INFO 14582 --- [orderflow] [           main] tc.testcontainers/ryuk:0.14.0            : Container testcontainers/ryuk:0.14.0 started in PT0.439992S
+2026-10-30T15:00:29.060+01:00  INFO 14582 --- [orderflow] [           main] o.t.utility.RyukResourceReaper           : Ryuk started - will monitor and terminate Testcontainers containers on JVM exit
+2026-10-30T15:00:29.061+01:00  INFO 14582 --- [orderflow] [           main] org.testcontainers.DockerClientFactory   : Checking the system...
+2026-10-30T15:00:29.061+01:00  INFO 14582 --- [orderflow] [           main] org.testcontainers.DockerClientFactory   : ✔︎ Docker server version should be at least 1.6.0
+2026-10-30T15:00:29.061+01:00  INFO 14582 --- [orderflow] [           main] tc.postgres:17-alpine                    : Creating container for image: postgres:17-alpine
+2026-10-30T15:00:29.081+01:00  INFO 14582 --- [orderflow] [           main] tc.postgres:17-alpine                    : Container postgres:17-alpine is starting: 7c1be204dae5783c9881b42e0d8d077056dc49f432729badf840c9c81b886344
+2026-10-30T15:00:29.962+01:00  INFO 14582 --- [orderflow] [           main] tc.postgres:17-alpine                    : Container postgres:17-alpine started in PT0.900638S
+2026-10-30T15:00:29.962+01:00  INFO 14582 --- [orderflow] [           main] tc.postgres:17-alpine                    : Container is started (JDBC URL: jdbc:postgresql://localhost:54248/test?loggerLevel=OFF)
+2026-10-30T15:00:30.134+01:00  INFO 14582 --- [orderflow] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:54248/test?loggerLevel=OFF (PostgreSQL 17.11)
+2026-10-30T15:00:30.162+01:00  INFO 14582 --- [orderflow] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Schema history table "public"."flyway_schema_history" does not exist yet
+2026-10-30T15:00:30.163+01:00  INFO 14582 --- [orderflow] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 1 migration (execution time 00:00.007s)
+2026-10-30T15:00:30.173+01:00  INFO 14582 --- [orderflow] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Creating Schema History table "public"."flyway_schema_history" ...
+2026-10-30T15:00:30.198+01:00  INFO 14582 --- [orderflow] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": << Empty Schema >>
+2026-10-30T15:00:30.202+01:00  INFO 14582 --- [orderflow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "1 - create orders schema"
+2026-10-30T15:00:30.217+01:00  INFO 14582 --- [orderflow] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 1 migration to schema "public", now at version v1 (execution time 00:00.006s)
+2026-10-30T15:00:30.256+01:00  INFO 14582 --- [orderflow] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-10-30T15:00:30.285+01:00  INFO 14582 --- [orderflow] [           main] org.hibernate.orm.core                   : HHH000001: Hibernate ORM core version 7.4.13.Final
+2026-10-30T15:00:30.435+01:00  INFO 14582 --- [orderflow] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-10-30T15:00:30.447+01:00  INFO 14582 --- [orderflow] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-10-30T15:00:30.464+01:00  INFO 14582 --- [orderflow] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@75f9a35a
+2026-10-30T15:00:30.464+01:00  INFO 14582 --- [orderflow] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-10-30T15:00:30.495+01:00  INFO 14582 --- [orderflow] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [jdbc:postgresql://localhost:54248/test?loggerLevel=OFF]
+	Database driver: PostgreSQL JDBC Driver
+	Database dialect: PostgreSQLDialect
+	Database version: 17.11
+	Default catalog/schema: test/public
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: none
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-10-30T15:00:30.979+01:00  INFO 14582 --- [orderflow] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-10-30T15:00:31.005+01:00  INFO 14582 --- [orderflow] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-10-30T15:00:31.039+01:00  INFO 14582 --- [orderflow] [           main] o.s.d.j.r.query.QueryEnhancerFactories   : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-10-30T15:00:31.338+01:00  INFO 14582 --- [orderflow] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-10-30T15:00:31.338+01:00  INFO 14582 --- [orderflow] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-10-30T15:00:31.340+01:00  INFO 14582 --- [orderflow] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 2 endpoints beneath base path '/actuator'
+2026-10-30T15:00:31.344+01:00  INFO 14582 --- [orderflow] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 6 ms
+2026-10-30T15:00:31.372+01:00  INFO 14582 --- [orderflow] [           main] com.orderflow.order.CreateOrderIT        : Started CreateOrderIT in 3.626 seconds (process running for 4.057)
+Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+Java HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+WARNING: A Java agent has been loaded dynamically (~/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.15/byte-buddy-agent-1.18.15.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/v1/orders
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", Content-Length:"162"]
+             Body = {"customerId":"c-42","currency":"EUR",
+ "lines":[{"productId":"p-1","quantity":2,"unitPrice":19.99},
+          {"productId":"p-2","quantity":1,"unitPrice":0.02}]}
+    Session Attrs = {}
+
+Handler:
+             Type = com.orderflow.order.adapter.in.web.OrderController
+           Method = com.orderflow.order.adapter.in.web.OrderController#create(CreateOrderRequest)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 201
+    Error message = null
+          Headers = [Location:"/api/v1/orders/75f8cc39-2e6c-4044-9cbe-7dd258695b8e", Content-Type:"application/json"]
+     Content type = application/json
+             Body = {"id":"75f8cc39-2e6c-4044-9cbe-7dd258695b8e","customerId":"c-42","status":"CREATED","currency":"EUR","totalAmount":40.00,"lines":[{"productId":"p-1","quantity":2,"unitPrice":19.99,"lineTotal":39.98},{"productId":"p-2","quantity":1,"unitPrice":0.02,"lineTotal":0.02}],"createdAt":"2026-10-30T14:00:31.707408Z"}
+    Forwarded URL = null
+   Redirected URL = /api/v1/orders/75f8cc39-2e6c-4044-9cbe-7dd258695b8e
+          Cookies = []
+[ERROR] Tests run: 2, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 4.230 s <<< FAILURE! -- in com.orderflow.order.CreateOrderIT
+[ERROR] com.orderflow.order.CreateOrderIT.persistsOrderAndReturns201 -- Time elapsed: 0.407 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: 
+
+expected: 2
+ but was: 0
+	at com.orderflow.order.CreateOrderIT.persistsOrderAndReturns201(CreateOrderIT.java:59)
+
+[INFO] Running com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT
+2026-10-30T15:00:31.824+01:00  INFO 14582 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT]: OrderPersistenceAdapterIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:31.834+01:00  INFO 14582 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT
+2026-10-30T15:00:31.834+01:00  INFO 14582 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT]: OrderPersistenceAdapterIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:31.838+01:00  INFO 14582 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.2)
+
+2026-10-30T15:00:31.851+01:00  INFO 14582 --- [orderflow] [           main] c.o.o.a.o.p.OrderPersistenceAdapterIT    : Starting OrderPersistenceAdapterIT using Java 21.0.5 with PID 14582 (started by afshin in ~/orderflow-harness-engineering)
+2026-10-30T15:00:31.852+01:00  INFO 14582 --- [orderflow] [           main] c.o.o.a.o.p.OrderPersistenceAdapterIT    : No active profile set, falling back to 1 default profile: "local"
+2026-10-30T15:00:31.875+01:00  INFO 14582 --- [orderflow] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-10-30T15:00:31.879+01:00  INFO 14582 --- [orderflow] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 3 ms. Found 1 JPA repository interface.
+2026-10-30T15:00:31.890+01:00  INFO 14582 --- [orderflow] [           main] tc.postgres:17-alpine                    : Creating container for image: postgres:17-alpine
+2026-10-30T15:00:31.934+01:00  INFO 14582 --- [orderflow] [           main] tc.postgres:17-alpine                    : Container postgres:17-alpine is starting: 190316b7d7cd58163552da11a21f5ac83fdef2c152ba4fdfc4241924786cee76
+2026-10-30T15:00:32.751+01:00  INFO 14582 --- [orderflow] [           main] tc.postgres:17-alpine                    : Container postgres:17-alpine started in PT0.860786S
+2026-10-30T15:00:32.751+01:00  INFO 14582 --- [orderflow] [           main] tc.postgres:17-alpine                    : Container is started (JDBC URL: jdbc:postgresql://localhost:54261/test?loggerLevel=OFF)
+2026-10-30T15:00:32.803+01:00  INFO 14582 --- [orderflow] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:54261/test?loggerLevel=OFF (PostgreSQL 17.11)
+2026-10-30T15:00:32.813+01:00  INFO 14582 --- [orderflow] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Schema history table "public"."flyway_schema_history" does not exist yet
+2026-10-30T15:00:32.814+01:00  INFO 14582 --- [orderflow] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 1 migration (execution time 00:00.001s)
+2026-10-30T15:00:32.819+01:00  INFO 14582 --- [orderflow] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Creating Schema History table "public"."flyway_schema_history" ...
+2026-10-30T15:00:32.833+01:00  INFO 14582 --- [orderflow] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": << Empty Schema >>
+2026-10-30T15:00:32.836+01:00  INFO 14582 --- [orderflow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "1 - create orders schema"
+2026-10-30T15:00:32.846+01:00  INFO 14582 --- [orderflow] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 1 migration to schema "public", now at version v1 (execution time 00:00.005s)
+2026-10-30T15:00:32.853+01:00  INFO 14582 --- [orderflow] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-10-30T15:00:32.860+01:00  INFO 14582 --- [orderflow] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-10-30T15:00:32.861+01:00  INFO 14582 --- [orderflow] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Starting...
+2026-10-30T15:00:32.866+01:00  INFO 14582 --- [orderflow] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-2 - Added connection org.postgresql.jdbc.PgConnection@77e062f4
+2026-10-30T15:00:32.866+01:00  INFO 14582 --- [orderflow] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Start completed.
+2026-10-30T15:00:32.871+01:00  INFO 14582 --- [orderflow] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [jdbc:postgresql://localhost:54261/test?loggerLevel=OFF]
+	Database driver: PostgreSQL JDBC Driver
+	Database dialect: PostgreSQLDialect
+	Database version: 17.11
+	Default catalog/schema: test/public
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: none
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-10-30T15:00:32.884+01:00  INFO 14582 --- [orderflow] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-10-30T15:00:32.895+01:00  INFO 14582 --- [orderflow] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-10-30T15:00:32.905+01:00  INFO 14582 --- [orderflow] [           main] c.o.o.a.o.p.OrderPersistenceAdapterIT    : Started OrderPersistenceAdapterIT in 1.065 seconds (process running for 5.591)
+Hibernate: insert into orders.orders (created_at,currency,customer_id,status,version,id) values (?,?,?,?,?,?)
+Hibernate: select oje1_0.id,oje1_0.created_at,oje1_0.currency,oje1_0.customer_id,oje1_0.status,oje1_0.version from orders.orders oje1_0 where oje1_0.id=?
+Hibernate: select l1_0.order_id,l1_0.line_no,l1_0.product_id,l1_0.quantity,l1_0.unit_price from orders.order_lines l1_0 where l1_0.order_id=?
+[ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 1.113 s <<< FAILURE! -- in com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT
+[ERROR] com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT.savedOrderRoundTripsAllFieldsAndLineOrder -- Time elapsed: 0.029 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: 
+
+Expecting actual:
+  []
+to contain exactly (and in same order):
+  ["p-2", "p-1"]
+but could not find the following elements:
+  ["p-2", "p-1"]
+
+	at com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT.savedOrderRoundTripsAllFieldsAndLineOrder(OrderPersistenceAdapterIT.java:52)
+
+[INFO] Running com.orderflow.order.adapter.in.web.OrderControllerIT
+2026-10-30T15:00:32.938+01:00  INFO 14582 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.order.adapter.in.web.OrderControllerIT]: OrderControllerIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:32.945+01:00  INFO 14582 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.order.adapter.in.web.OrderControllerIT
+2026-10-30T15:00:32.946+01:00  INFO 14582 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.order.adapter.in.web.OrderControllerIT]: OrderControllerIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:32.952+01:00  INFO 14582 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.order.adapter.in.web.OrderControllerIT
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.2)
+
+2026-10-30T15:00:32.961+01:00  INFO 14582 --- [orderflow] [           main] c.o.o.adapter.in.web.OrderControllerIT   : Starting OrderControllerIT using Java 21.0.5 with PID 14582 (started by afshin in ~/orderflow-harness-engineering)
+2026-10-30T15:00:32.961+01:00  INFO 14582 --- [orderflow] [           main] c.o.o.adapter.in.web.OrderControllerIT   : No active profile set, falling back to 1 default profile: "local"
+2026-10-30T15:00:33.111+01:00  INFO 14582 --- [orderflow] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-10-30T15:00:33.111+01:00  INFO 14582 --- [orderflow] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-10-30T15:00:33.112+01:00  INFO 14582 --- [orderflow] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 1 ms
+2026-10-30T15:00:33.117+01:00  INFO 14582 --- [orderflow] [           main] c.o.o.adapter.in.web.OrderControllerIT   : Started OrderControllerIT in 0.163 seconds (process running for 5.802)
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.251 s -- in com.orderflow.order.adapter.in.web.OrderControllerIT
+[INFO] Running com.orderflow.OrderFlowApplicationIT
+2026-10-30T15:00:33.192+01:00  INFO 14582 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.OrderFlowApplicationIT]: OrderFlowApplicationIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:33.198+01:00  INFO 14582 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.OrderFlowApplicationIT
+2026-10-30T15:00:33.199+01:00  INFO 14582 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.OrderFlowApplicationIT]: OrderFlowApplicationIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:33.201+01:00  INFO 14582 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.OrderFlowApplicationIT
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.036 s -- in com.orderflow.OrderFlowApplicationIT
+[INFO] 
+[INFO] Results:
+[INFO] 
+[ERROR] Failures: 
+[ERROR]   CreateOrderIT.persistsOrderAndReturns201:59 
+expected: 2
+ but was: 0
+[ERROR]   OrderPersistenceAdapterIT.savedOrderRoundTripsAllFieldsAndLineOrder:52 
+Expecting actual:
+  []
+to contain exactly (and in same order):
+  ["p-2", "p-1"]
+but could not find the following elements:
+  ["p-2", "p-1"]
+
+[INFO] 
+[ERROR] Tests run: 10, Failures: 2, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- failsafe:3.5.6:verify (default-cli) @ orderflow ---
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  6.638 s
+[INFO] Finished at: 2026-10-30T15:00:33+01:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-failsafe-plugin:3.5.6:verify (default-cli) on project orderflow: There are test failures.
+[ERROR] 
+[ERROR] See ~/orderflow-harness-engineering/target/failsafe-reports for the individual test results.
+[ERROR] See dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+
+QUALITY GATE FAILED: stage 'integration' (exit code 1)

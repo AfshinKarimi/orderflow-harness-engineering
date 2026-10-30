@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: orderflow
+  profiles:
+    # Used only when no profile is set explicitly; production must set SPRING_PROFILES_ACTIVE=prod.
+    default: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Schema is owned by Flyway; Hibernate only validates it.
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

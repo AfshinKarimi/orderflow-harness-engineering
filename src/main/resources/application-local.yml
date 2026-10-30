@@ -1,0 +1,11 @@
+# Matches compose.yaml. Development credentials only.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/orderflow
+    username: orderflow
+    password: orderflow
+
+management:
+  endpoint:
+    health:
+      show-details: always

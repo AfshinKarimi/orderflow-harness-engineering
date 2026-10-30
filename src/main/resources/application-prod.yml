@@ -1,0 +1,11 @@
+# No defaults: startup fails fast if any of these are missing.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+management:
+  endpoint:
+    health:
+      show-details: never
