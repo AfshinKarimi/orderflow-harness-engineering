@@ -1,0 +1,158 @@
+# GitHub Actions run 41076238013 (https://github.com/AfshinKarimi/orderflow-harness-engineering/actions/runs/41076238013), step: Run quality gate
+﻿2026-10-30T14:57:33.2790333Z ##[group]Run scripts/quality-gate.sh
+[36;1mscripts/quality-gate.sh[0m
+shell: /usr/bin/bash -e {0}
+env:
+  JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+  JAVA_HOME_21_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+  MAVEN_ARGS: -ntp
+##[endgroup]
+
+==> [compile] ./mvnw -B -ntp clean test-compile
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.5.0:clean (default-clean) @ orderflow ---
+[INFO] 
+[INFO] --- jacoco:0.8.16:prepare-agent (prepare-agent) @ orderflow ---
+[INFO] argLine set to -javaagent:/home/runner/.m2/repository/org/jacoco/org.jacoco.agent/0.8.16/org.jacoco.agent-0.8.16-runtime.jar=destfile=/home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering/target/jacoco.exec
+[INFO] 
+[INFO] --- resources:3.5.0:resources (default-resources) @ orderflow ---
+[INFO] Copying 3 resources from src/main/resources to target/classes
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.15.0:compile (default-compile) @ orderflow ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 24 source files with javac [debug parameters release 21] to target/classes
+[INFO] 
+[INFO] --- resources:3.5.0:testResources (default-testResources) @ orderflow ---
+[INFO] Copying 1 resource from src/test/resources to target/test-classes
+[INFO] 
+[INFO] --- compiler:3.15.0:testCompile (default-testCompile) @ orderflow ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 10 source files with javac [debug parameters release 21] to target/test-classes
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  4.080 s
+[INFO] Finished at: 2026-10-30T14:57:41Z
+[INFO] ------------------------------------------------------------------------
+
+==> [style] ./mvnw -B -ntp checkstyle:check
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- checkstyle:3.6.0:check (default-cli) @ orderflow ---
+[INFO] Starting audit...
+Audit done.
+[INFO] You have 0 Checkstyle violations.
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  3.782 s
+[INFO] Finished at: 2026-10-30T14:57:46Z
+[INFO] ------------------------------------------------------------------------
+
+==> [unit] ./mvnw -B -ntp jacoco:prepare-agent surefire:test -Dtest=!ArchitectureTest,!*IT
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- jacoco:0.8.16:prepare-agent (default-cli) @ orderflow ---
+[INFO] argLine set to -javaagent:/home/runner/.m2/repository/org/jacoco/org.jacoco.agent/0.8.16/org.jacoco.agent-0.8.16-runtime.jar=destfile=/home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering/target/jacoco.exec
+[INFO] 
+[INFO] --- surefire:3.5.6:test (default-cli) @ orderflow ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+14:57:50.730 [main] INFO com.tngtech.archunit.ArchConfiguration -- Reading ArchUnit properties from file:/home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering/target/test-classes/archunit.properties
+[INFO] Running com.orderflow.shared.domain.MoneyTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.254 s -- in com.orderflow.shared.domain.MoneyTest
+[INFO] Running com.orderflow.order.application.service.CreateOrderServiceTest
+[ERROR] Tests run: 4, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 0.150 s <<< FAILURE! -- in com.orderflow.order.application.service.CreateOrderServiceTest
+[ERROR] com.orderflow.order.application.service.CreateOrderServiceTest.treatsMissingLinesAsEmptyOrder -- Time elapsed: 0.033 s <<< FAILURE!
+java.lang.AssertionError: 
+
+Expecting actual throwable to be an instance of:
+  com.orderflow.order.domain.InvalidOrderException
+but was:
+  java.lang.IllegalArgumentException: Order must have at least one line
+
+
+
+
+
+
+[ERROR] com.orderflow.order.application.service.CreateOrderServiceTest.doesNotSaveInvalidOrder -- Time elapsed: 0.002 s <<< FAILURE!
+java.lang.AssertionError: 
+
+Expecting actual throwable to be an instance of:
+  com.orderflow.order.domain.InvalidOrderException
+but was:
+  java.lang.IllegalArgumentException: Order must have at least one line
+
+
+
+
+
+
+[INFO] Running com.orderflow.order.domain.OrderTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.048 s -- in com.orderflow.order.domain.OrderTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[ERROR] Failures: 
+[ERROR]   CreateOrderServiceTest.doesNotSaveInvalidOrder:63 
+Expecting actual throwable to be an instance of:
+  com.orderflow.order.domain.InvalidOrderException
+but was:
+  java.lang.IllegalArgumentException: Order must have at least one line
+
+
+
+
+[ERROR]   CreateOrderServiceTest.treatsMissingLinesAsEmptyOrder:74 
+Expecting actual throwable to be an instance of:
+  com.orderflow.order.domain.InvalidOrderException
+but was:
+  java.lang.IllegalArgumentException: Order must have at least one line
+
+
+
+
+[INFO] 
+[ERROR] Tests run: 26, Failures: 2, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  3.714 s
+[INFO] Finished at: 2026-10-30T14:57:51Z
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.6:test (default-cli) on project orderflow: There are test failures.
+[ERROR] 
+[ERROR] See /home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering/target/surefire-reports for the individual test results.
+[ERROR] See dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+
+QUALITY GATE FAILED: stage 'unit' (exit code 1)
+##[error]Process completed with exit code 1.

@@ -1,0 +1,394 @@
+# GitHub Actions run 41076509487 (https://github.com/AfshinKarimi/orderflow-harness-engineering/actions/runs/41076509487), step: Run quality gate
+﻿2026-10-30T14:59:23.3893083Z ##[group]Run scripts/quality-gate.sh
+[36;1mscripts/quality-gate.sh[0m
+shell: /usr/bin/bash -e {0}
+env:
+  JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+  JAVA_HOME_21_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.13-9/x64
+  MAVEN_ARGS: -ntp
+##[endgroup]
+
+==> [compile] ./mvnw -B -ntp clean test-compile
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.5.0:clean (default-clean) @ orderflow ---
+[INFO] 
+[INFO] --- jacoco:0.8.16:prepare-agent (prepare-agent) @ orderflow ---
+[INFO] argLine set to -javaagent:/home/runner/.m2/repository/org/jacoco/org.jacoco.agent/0.8.16/org.jacoco.agent-0.8.16-runtime.jar=destfile=/home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering/target/jacoco.exec
+[INFO] 
+[INFO] --- resources:3.5.0:resources (default-resources) @ orderflow ---
+[INFO] Copying 3 resources from src/main/resources to target/classes
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.15.0:compile (default-compile) @ orderflow ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 24 source files with javac [debug parameters release 21] to target/classes
+[INFO] 
+[INFO] --- resources:3.5.0:testResources (default-testResources) @ orderflow ---
+[INFO] Copying 1 resource from src/test/resources to target/test-classes
+[INFO] 
+[INFO] --- compiler:3.15.0:testCompile (default-testCompile) @ orderflow ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 10 source files with javac [debug parameters release 21] to target/test-classes
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  3.123 s
+[INFO] Finished at: 2026-10-30T14:59:29Z
+[INFO] ------------------------------------------------------------------------
+
+==> [style] ./mvnw -B -ntp checkstyle:check
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- checkstyle:3.6.0:check (default-cli) @ orderflow ---
+[INFO] Starting audit...
+Audit done.
+[INFO] You have 0 Checkstyle violations.
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  2.627 s
+[INFO] Finished at: 2026-10-30T14:59:33Z
+[INFO] ------------------------------------------------------------------------
+
+==> [unit] ./mvnw -B -ntp jacoco:prepare-agent surefire:test -Dtest=!ArchitectureTest,!*IT
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- jacoco:0.8.16:prepare-agent (default-cli) @ orderflow ---
+[INFO] argLine set to -javaagent:/home/runner/.m2/repository/org/jacoco/org.jacoco.agent/0.8.16/org.jacoco.agent-0.8.16-runtime.jar=destfile=/home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering/target/jacoco.exec
+[INFO] 
+[INFO] --- surefire:3.5.6:test (default-cli) @ orderflow ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+14:59:36.014 [main] INFO com.tngtech.archunit.ArchConfiguration -- Reading ArchUnit properties from file:/home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering/target/test-classes/archunit.properties
+[INFO] Running com.orderflow.shared.domain.MoneyTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.167 s -- in com.orderflow.shared.domain.MoneyTest
+[INFO] Running com.orderflow.order.application.service.CreateOrderServiceTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.085 s -- in com.orderflow.order.application.service.CreateOrderServiceTest
+[INFO] Running com.orderflow.order.domain.OrderTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.027 s -- in com.orderflow.order.domain.OrderTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 26, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  2.593 s
+[INFO] Finished at: 2026-10-30T14:59:36Z
+[INFO] ------------------------------------------------------------------------
+
+==> [architecture] ./mvnw -B -ntp surefire:test -Dtest=ArchitectureTest
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- surefire:3.5.6:test (default-cli) @ orderflow ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+14:59:38.848 [main] INFO com.tngtech.archunit.ArchConfiguration -- Reading ArchUnit properties from file:/home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering/target/test-classes/archunit.properties
+[INFO] Running com.orderflow.architecture.ArchitectureTest
+14:59:38.914 [main] INFO com.tngtech.archunit.core.PluginLoader -- Detected Java version 21.0.13
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.204 s -- in com.orderflow.architecture.ArchitectureTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  2.645 s
+[INFO] Finished at: 2026-10-30T14:59:40Z
+[INFO] ------------------------------------------------------------------------
+
+==> [integration] ./mvnw -B -ntp jacoco:prepare-agent failsafe:integration-test failsafe:verify
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- jacoco:0.8.16:prepare-agent (default-cli) @ orderflow ---
+[INFO] argLine set to -javaagent:/home/runner/.m2/repository/org/jacoco/org.jacoco.agent/0.8.16/org.jacoco.agent-0.8.16-runtime.jar=destfile=/home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering/target/jacoco.exec
+[INFO] 
+[INFO] --- failsafe:3.5.6:integration-test (default-cli) @ orderflow ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+14:59:45.247 [main] INFO com.tngtech.archunit.ArchConfiguration -- Reading ArchUnit properties from file:/home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering/target/test-classes/archunit.properties
+[INFO] Running com.orderflow.architecture.SchemaOwnershipIT
+14:59:45.666 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.orderflow.architecture.SchemaOwnershipIT]: SchemaOwnershipIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+14:59:45.863 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.architecture.SchemaOwnershipIT
+14:59:46.009 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.orderflow.architecture.SchemaOwnershipIT]: SchemaOwnershipIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+14:59:46.018 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.architecture.SchemaOwnershipIT
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.2)
+
+2026-10-30T14:59:46.682Z  INFO 3082 --- [orderflow] [           main] c.o.architecture.SchemaOwnershipIT       : Starting SchemaOwnershipIT using Java 21.0.13 with PID 3082 (started by runner in /home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering)
+2026-10-30T14:59:46.684Z  INFO 3082 --- [orderflow] [           main] c.o.architecture.SchemaOwnershipIT       : No active profile set, falling back to 1 default profile: "local"
+2026-10-30T14:59:47.629Z  INFO 3082 --- [orderflow] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-10-30T14:59:47.675Z  INFO 3082 --- [orderflow] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 37 ms. Found 1 JPA repository interface.
+2026-10-30T14:59:48.051Z  INFO 3082 --- [orderflow] [           main] org.testcontainers.images.PullPolicy     : Image pull policy will be performed by: DefaultPullPolicy()
+2026-10-30T14:59:48.053Z  INFO 3082 --- [orderflow] [           main] o.t.utility.ImageNameSubstitutor         : Image name substitution will be performed by: DefaultImageNameSubstitutor (composite of 'ConfigurationFileImageNameSubstitutor' and 'PrefixingImageNameSubstitutor')
+2026-10-30T14:59:48.074Z  INFO 3082 --- [orderflow] [           main] org.testcontainers.DockerClientFactory   : Testcontainers version: 2.0.5
+2026-10-30T14:59:49.091Z  INFO 3082 --- [orderflow] [           main] o.t.d.DockerClientProviderStrategy       : Found Docker environment with local Unix socket (unix:///var/run/docker.sock)
+2026-10-30T14:59:49.094Z  INFO 3082 --- [orderflow] [           main] org.testcontainers.DockerClientFactory   : Docker host IP address is localhost
+2026-10-30T14:59:49.109Z  INFO 3082 --- [orderflow] [           main] org.testcontainers.DockerClientFactory   : Connected to docker: 
+  Server Version: 28.0.4
+  API Version: 1.48
+  Operating System: Ubuntu 24.04.5 LTS
+  Total Memory: 15982 MB
+2026-10-30T14:59:49.142Z  INFO 3082 --- [orderflow] [           main] tc.testcontainers/ryuk:0.14.0            : Pulling docker image: testcontainers/ryuk:0.14.0. Please be patient; this may take some time but only needs to be done once.
+2026-10-30T14:59:49.825Z  INFO 3082 --- [orderflow] [tream-379213951] tc.testcontainers/ryuk:0.14.0            : Starting to pull image
+2026-10-30T14:59:49.851Z  INFO 3082 --- [orderflow] [tream-379213951] tc.testcontainers/ryuk:0.14.0            : Pulling image layers:  0 pending,  0 downloaded,  0 extracted, (0 bytes/0 bytes)
+2026-10-30T14:59:50.161Z  INFO 3082 --- [orderflow] [tream-379213951] tc.testcontainers/ryuk:0.14.0            : Pulling image layers:  1 pending,  1 downloaded,  0 extracted, (242 KB/? MB)
+2026-10-30T14:59:50.169Z  INFO 3082 --- [orderflow] [tream-379213951] tc.testcontainers/ryuk:0.14.0            : Pulling image layers:  1 pending,  1 downloaded,  1 extracted, (242 KB/? MB)
+2026-10-30T14:59:50.212Z  INFO 3082 --- [orderflow] [tream-379213951] tc.testcontainers/ryuk:0.14.0            : Pulling image layers:  0 pending,  2 downloaded,  1 extracted, (2 MB/2 MB)
+2026-10-30T14:59:51.188Z  INFO 3082 --- [orderflow] [tream-379213951] tc.testcontainers/ryuk:0.14.0            : Pulling image layers:  0 pending,  2 downloaded,  2 extracted, (2 MB/2 MB)
+2026-10-30T14:59:51.197Z  INFO 3082 --- [orderflow] [tream-379213951] tc.testcontainers/ryuk:0.14.0            : Pull complete. 2 layers, pulled in 1s (downloaded 2 MB at 2 MB/s)
+2026-10-30T14:59:51.197Z  INFO 3082 --- [orderflow] [           main] tc.testcontainers/ryuk:0.14.0            : Image testcontainers/ryuk:0.14.0 pull took PT2.055360253S
+2026-10-30T14:59:51.218Z  INFO 3082 --- [orderflow] [           main] tc.testcontainers/ryuk:0.14.0            : Creating container for image: testcontainers/ryuk:0.14.0
+2026-10-30T14:59:51.287Z  INFO 3082 --- [orderflow] [           main] tc.testcontainers/ryuk:0.14.0            : Container testcontainers/ryuk:0.14.0 is starting: 1e3adf1cac5c60f6365413151a16adc0e06d9aca51294ce4069f2e4eb9e9bd0d
+2026-10-30T14:59:51.592Z  INFO 3082 --- [orderflow] [           main] tc.testcontainers/ryuk:0.14.0            : Container testcontainers/ryuk:0.14.0 started in PT0.373868624S
+2026-10-30T14:59:51.614Z  INFO 3082 --- [orderflow] [           main] o.t.utility.RyukResourceReaper           : Ryuk started - will monitor and terminate Testcontainers containers on JVM exit
+2026-10-30T14:59:51.615Z  INFO 3082 --- [orderflow] [           main] org.testcontainers.DockerClientFactory   : Checking the system...
+2026-10-30T14:59:51.615Z  INFO 3082 --- [orderflow] [           main] org.testcontainers.DockerClientFactory   : ✔︎ Docker server version should be at least 1.6.0
+2026-10-30T14:59:51.618Z  INFO 3082 --- [orderflow] [           main] tc.postgres:17-alpine                    : Pulling docker image: postgres:17-alpine. Please be patient; this may take some time but only needs to be done once.
+2026-10-30T14:59:52.205Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Starting to pull image
+2026-10-30T14:59:52.206Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  0 pending,  0 downloaded,  0 extracted, (0 bytes/0 bytes)
+2026-10-30T14:59:52.563Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  9 pending,  1 downloaded,  0 extracted, (16 KB/? MB)
+2026-10-30T14:59:52.601Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  8 pending,  2 downloaded,  0 extracted, (927 KB/? MB)
+2026-10-30T14:59:52.624Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  7 pending,  3 downloaded,  0 extracted, (927 KB/? MB)
+2026-10-30T14:59:52.709Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  7 pending,  3 downloaded,  1 extracted, (4 MB/? MB)
+2026-10-30T14:59:52.715Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  6 pending,  4 downloaded,  1 extracted, (4 MB/? MB)
+2026-10-30T14:59:52.792Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  5 pending,  5 downloaded,  1 extracted, (4 MB/? MB)
+2026-10-30T14:59:52.796Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  5 pending,  5 downloaded,  2 extracted, (4 MB/? MB)
+2026-10-30T14:59:52.844Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  4 pending,  6 downloaded,  2 extracted, (5 MB/? MB)
+2026-10-30T14:59:52.849Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  4 pending,  6 downloaded,  3 extracted, (5 MB/? MB)
+2026-10-30T14:59:52.877Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  4 pending,  6 downloaded,  4 extracted, (5 MB/? MB)
+2026-10-30T14:59:52.929Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  3 pending,  7 downloaded,  4 extracted, (22 MB/? MB)
+2026-10-30T14:59:52.987Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  2 pending,  8 downloaded,  4 extracted, (22 MB/? MB)
+2026-10-30T14:59:53.069Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  1 pending,  9 downloaded,  4 extracted, (73 MB/? MB)
+2026-10-30T14:59:53.085Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  0 pending, 10 downloaded,  4 extracted, (73 MB/111 MB)
+2026-10-30T14:59:56.295Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  0 pending, 10 downloaded,  5 extracted, (111 MB/111 MB)
+2026-10-30T14:59:56.307Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  0 pending, 10 downloaded,  6 extracted, (111 MB/111 MB)
+2026-10-30T14:59:56.320Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  0 pending, 10 downloaded,  7 extracted, (111 MB/111 MB)
+2026-10-30T14:59:56.333Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  0 pending, 10 downloaded,  8 extracted, (111 MB/111 MB)
+2026-10-30T14:59:56.344Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  0 pending, 10 downloaded,  9 extracted, (111 MB/111 MB)
+2026-10-30T14:59:56.377Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pulling image layers:  0 pending, 10 downloaded, 10 extracted, (111 MB/111 MB)
+2026-10-30T14:59:56.385Z  INFO 3082 --- [orderflow] [eam--1852279113] tc.postgres:17-alpine                    : Pull complete. 10 layers, pulled in 4s (downloaded 111 MB at 27 MB/s)
+2026-10-30T14:59:56.385Z  INFO 3082 --- [orderflow] [           main] tc.postgres:17-alpine                    : Image postgres:17-alpine pull took PT4.767345183S
+2026-10-30T14:59:56.388Z  INFO 3082 --- [orderflow] [           main] tc.postgres:17-alpine                    : Creating container for image: postgres:17-alpine
+2026-10-30T14:59:56.404Z  INFO 3082 --- [orderflow] [           main] tc.postgres:17-alpine                    : Container postgres:17-alpine is starting: 011d3bcd8a3b4900019a6ff567baab758d30b2995d3d998e02ea0fb2e4244edb
+2026-10-30T14:59:57.635Z  INFO 3082 --- [orderflow] [           main] tc.postgres:17-alpine                    : Container postgres:17-alpine started in PT1.246066316S
+2026-10-30T14:59:57.636Z  INFO 3082 --- [orderflow] [           main] tc.postgres:17-alpine                    : Container is started (JDBC URL: jdbc:postgresql://localhost:32769/test?loggerLevel=OFF)
+2026-10-30T14:59:58.078Z  INFO 3082 --- [orderflow] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:32769/test?loggerLevel=OFF (PostgreSQL 17.11)
+2026-10-30T14:59:58.128Z  INFO 3082 --- [orderflow] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Schema history table "public"."flyway_schema_history" does not exist yet
+2026-10-30T14:59:58.132Z  INFO 3082 --- [orderflow] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 1 migration (execution time 00:00.014s)
+2026-10-30T14:59:58.143Z  INFO 3082 --- [orderflow] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Creating Schema History table "public"."flyway_schema_history" ...
+2026-10-30T14:59:58.187Z  INFO 3082 --- [orderflow] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": << Empty Schema >>
+2026-10-30T14:59:58.194Z  INFO 3082 --- [orderflow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "1 - create orders schema"
+2026-10-30T14:59:58.214Z  INFO 3082 --- [orderflow] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 1 migration to schema "public", now at version v1 (execution time 00:00.010s)
+2026-10-30T14:59:58.324Z  INFO 3082 --- [orderflow] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-10-30T14:59:58.383Z  INFO 3082 --- [orderflow] [           main] org.hibernate.orm.core                   : HHH000001: Hibernate ORM core version 7.4.13.Final
+2026-10-30T14:59:58.765Z  INFO 3082 --- [orderflow] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-10-30T14:59:58.809Z  INFO 3082 --- [orderflow] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-10-30T14:59:58.871Z  INFO 3082 --- [orderflow] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@2b99c80d
+2026-10-30T14:59:58.873Z  INFO 3082 --- [orderflow] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-10-30T14:59:58.992Z  INFO 3082 --- [orderflow] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+
+
+
+
+
+
+
+
+
+
+
+2026-10-30T14:59:59.963Z  INFO 3082 --- [orderflow] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-10-30T15:00:00.013Z  INFO 3082 --- [orderflow] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-10-30T15:00:00.106Z  INFO 3082 --- [orderflow] [           main] o.s.d.j.r.query.QueryEnhancerFactories   : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-10-30T15:00:00.914Z  INFO 3082 --- [orderflow] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-10-30T15:00:00.914Z  INFO 3082 --- [orderflow] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-10-30T15:00:00.919Z  INFO 3082 --- [orderflow] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 2 endpoints beneath base path '/actuator'
+2026-10-30T15:00:00.927Z  INFO 3082 --- [orderflow] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 13 ms
+2026-10-30T15:00:00.981Z  INFO 3082 --- [orderflow] [           main] c.o.architecture.SchemaOwnershipIT       : Started SchemaOwnershipIT in 14.876 seconds (process running for 16.683)
+Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+WARNING: A Java agent has been loaded dynamically (/home/runner/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.15/byte-buddy-agent-1.18.15.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 16.27 s -- in com.orderflow.architecture.SchemaOwnershipIT
+[INFO] Running com.orderflow.order.CreateOrderIT
+2026-10-30T15:00:01.717Z  INFO 3082 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.order.CreateOrderIT]: CreateOrderIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:01.735Z  INFO 3082 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.order.CreateOrderIT
+2026-10-30T15:00:01.737Z  INFO 3082 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.order.CreateOrderIT]: CreateOrderIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:01.747Z  INFO 3082 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.order.CreateOrderIT
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.468 s -- in com.orderflow.order.CreateOrderIT
+[INFO] Running com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT
+2026-10-30T15:00:02.188Z  INFO 3082 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT]: OrderPersistenceAdapterIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:02.211Z  INFO 3082 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT
+2026-10-30T15:00:02.212Z  INFO 3082 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT]: OrderPersistenceAdapterIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:02.223Z  INFO 3082 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.2)
+
+2026-10-30T15:00:02.256Z  INFO 3082 --- [orderflow] [           main] c.o.o.a.o.p.OrderPersistenceAdapterIT    : Starting OrderPersistenceAdapterIT using Java 21.0.13 with PID 3082 (started by runner in /home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering)
+2026-10-30T15:00:02.256Z  INFO 3082 --- [orderflow] [           main] c.o.o.a.o.p.OrderPersistenceAdapterIT    : No active profile set, falling back to 1 default profile: "local"
+2026-10-30T15:00:02.326Z  INFO 3082 --- [orderflow] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-10-30T15:00:02.334Z  INFO 3082 --- [orderflow] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 6 ms. Found 1 JPA repository interface.
+2026-10-30T15:00:02.367Z  INFO 3082 --- [orderflow] [           main] tc.postgres:17-alpine                    : Creating container for image: postgres:17-alpine
+2026-10-30T15:00:02.480Z  INFO 3082 --- [orderflow] [           main] tc.postgres:17-alpine                    : Container postgres:17-alpine is starting: bd81967ed7eb805c4de047a6799c0ce7b49d9dfd4e8f0e72bb87fde5664cff12
+2026-10-30T15:00:03.823Z  INFO 3082 --- [orderflow] [           main] tc.postgres:17-alpine                    : Container postgres:17-alpine started in PT1.455431284S
+2026-10-30T15:00:03.823Z  INFO 3082 --- [orderflow] [           main] tc.postgres:17-alpine                    : Container is started (JDBC URL: jdbc:postgresql://localhost:32770/test?loggerLevel=OFF)
+2026-10-30T15:00:03.897Z  INFO 3082 --- [orderflow] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:32770/test?loggerLevel=OFF (PostgreSQL 17.11)
+2026-10-30T15:00:03.911Z  INFO 3082 --- [orderflow] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Schema history table "public"."flyway_schema_history" does not exist yet
+2026-10-30T15:00:03.911Z  INFO 3082 --- [orderflow] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 1 migration (execution time 00:00.002s)
+2026-10-30T15:00:03.917Z  INFO 3082 --- [orderflow] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Creating Schema History table "public"."flyway_schema_history" ...
+2026-10-30T15:00:03.939Z  INFO 3082 --- [orderflow] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": << Empty Schema >>
+2026-10-30T15:00:03.942Z  INFO 3082 --- [orderflow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "1 - create orders schema"
+2026-10-30T15:00:03.955Z  INFO 3082 --- [orderflow] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 1 migration to schema "public", now at version v1 (execution time 00:00.008s)
+2026-10-30T15:00:03.971Z  INFO 3082 --- [orderflow] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-10-30T15:00:03.989Z  INFO 3082 --- [orderflow] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-10-30T15:00:03.990Z  INFO 3082 --- [orderflow] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Starting...
+2026-10-30T15:00:03.998Z  INFO 3082 --- [orderflow] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-2 - Added connection org.postgresql.jdbc.PgConnection@363291b
+2026-10-30T15:00:03.998Z  INFO 3082 --- [orderflow] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Start completed.
+2026-10-30T15:00:04.006Z  INFO 3082 --- [orderflow] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+
+
+
+
+
+
+
+
+
+
+
+2026-10-30T15:00:04.043Z  INFO 3082 --- [orderflow] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-10-30T15:00:04.065Z  INFO 3082 --- [orderflow] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-10-30T15:00:04.098Z  INFO 3082 --- [orderflow] [           main] c.o.o.a.o.p.OrderPersistenceAdapterIT    : Started OrderPersistenceAdapterIT in 1.869 seconds (process running for 19.8)
+Hibernate: insert into orders.orders (created_at,currency,customer_id,status,version,id) values (?,?,?,?,?,?)
+Hibernate: insert into orders.order_lines (order_id,line_no,product_id,quantity,unit_price) values (?,?,?,?,?)
+Hibernate: insert into orders.order_lines (order_id,line_no,product_id,quantity,unit_price) values (?,?,?,?,?)
+Hibernate: select oje1_0.id,oje1_0.created_at,oje1_0.currency,oje1_0.customer_id,oje1_0.status,oje1_0.version from orders.orders oje1_0 where oje1_0.id=?
+Hibernate: select l1_0.order_id,l1_0.line_no,l1_0.product_id,l1_0.quantity,l1_0.unit_price from orders.order_lines l1_0 where l1_0.order_id=?
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.017 s -- in com.orderflow.order.adapter.out.persistence.OrderPersistenceAdapterIT
+[INFO] Running com.orderflow.order.adapter.in.web.OrderControllerIT
+2026-10-30T15:00:04.208Z  INFO 3082 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.order.adapter.in.web.OrderControllerIT]: OrderControllerIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:04.227Z  INFO 3082 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.order.adapter.in.web.OrderControllerIT
+2026-10-30T15:00:04.227Z  INFO 3082 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.order.adapter.in.web.OrderControllerIT]: OrderControllerIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:04.233Z  INFO 3082 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.order.adapter.in.web.OrderControllerIT
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.2)
+
+2026-10-30T15:00:04.261Z  INFO 3082 --- [orderflow] [           main] c.o.o.adapter.in.web.OrderControllerIT   : Starting OrderControllerIT using Java 21.0.13 with PID 3082 (started by runner in /home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering)
+2026-10-30T15:00:04.261Z  INFO 3082 --- [orderflow] [           main] c.o.o.adapter.in.web.OrderControllerIT   : No active profile set, falling back to 1 default profile: "local"
+2026-10-30T15:00:04.803Z  INFO 3082 --- [orderflow] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-10-30T15:00:04.804Z  INFO 3082 --- [orderflow] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-10-30T15:00:04.806Z  INFO 3082 --- [orderflow] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 2 ms
+2026-10-30T15:00:04.818Z  INFO 3082 --- [orderflow] [           main] c.o.o.adapter.in.web.OrderControllerIT   : Started OrderControllerIT in 0.581 seconds (process running for 20.52)
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.850 s -- in com.orderflow.order.adapter.in.web.OrderControllerIT
+[INFO] Running com.orderflow.OrderFlowApplicationIT
+2026-10-30T15:00:05.064Z  INFO 3082 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.OrderFlowApplicationIT]: OrderFlowApplicationIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:05.081Z  INFO 3082 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.OrderFlowApplicationIT
+2026-10-30T15:00:05.083Z  INFO 3082 --- [orderflow] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.orderflow.OrderFlowApplicationIT]: OrderFlowApplicationIT does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-10-30T15:00:05.095Z  INFO 3082 --- [orderflow] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.orderflow.OrderFlowApplication for test class com.orderflow.OrderFlowApplicationIT
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.110 s -- in com.orderflow.OrderFlowApplicationIT
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] 
+[INFO] --- failsafe:3.5.6:verify (default-cli) @ orderflow ---
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  23.266 s
+[INFO] Finished at: 2026-10-30T15:00:06Z
+[INFO] ------------------------------------------------------------------------
+
+==> [coverage] ./mvnw -B -ntp jacoco:report jacoco:check
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.orderflow:orderflow >-----------------------
+[INFO] Building OrderFlow 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- jacoco:0.8.16:report (default-cli) @ orderflow ---
+[INFO] Loading execution data file /home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering/target/jacoco.exec
+[INFO] Analyzed bundle 'OrderFlow' with 25 classes
+[INFO] 
+[INFO] --- jacoco:0.8.16:check (default-cli) @ orderflow ---
+[INFO] Loading execution data file /home/runner/work/orderflow-harness-engineering/orderflow-harness-engineering/target/jacoco.exec
+[INFO] Analyzed bundle 'orderflow' with 25 classes
+[INFO] All coverage checks have been met.
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  0.713 s
+[INFO] Finished at: 2026-10-30T15:00:08Z
+[INFO] ------------------------------------------------------------------------
+
+==> QUALITY GATE PASSED
+    compile        OK     5s
+    style          OK     4s
+    unit           OK     3s
+    architecture   OK     4s
+    integration    OK    24s
+    coverage       OK     2s
