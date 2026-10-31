@@ -1,0 +1,604 @@
+diff --git a/src/main/java/com/orderflow/order/adapter/out/event/OutboxOrderEventPublisher.java b/src/main/java/com/orderflow/order/adapter/out/event/OutboxOrderEventPublisher.java
+new file mode 100644
+index 0000000..9c463a9
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/adapter/out/event/OutboxOrderEventPublisher.java
+@@ -0,0 +1,23 @@
++package com.orderflow.order.adapter.out.event;
++
++import com.orderflow.order.application.event.OrderEvents;
++import com.orderflow.order.application.event.OrderPlaced;
++import com.orderflow.order.application.port.out.OrderEventPublisher;
++import com.orderflow.platform.messaging.api.OutboxWriter;
++import org.springframework.stereotype.Component;
++
++/** Writes events to the transactional outbox (ADR-0003); the relay publishes them to Kafka after commit. */
++@Component
++class OutboxOrderEventPublisher implements OrderEventPublisher {
++
++    private final OutboxWriter outboxWriter;
++
++    OutboxOrderEventPublisher(OutboxWriter outboxWriter) {
++        this.outboxWriter = outboxWriter;
++    }
++
++    @Override
++    public void orderPlaced(OrderPlaced event) {
++        outboxWriter.append(OrderEvents.TOPIC, event.orderId().toString(), event);
++    }
++}
+diff --git a/src/main/java/com/orderflow/order/application/event/OrderEvents.java b/src/main/java/com/orderflow/order/application/event/OrderEvents.java
+new file mode 100644
+index 0000000..3d356f0
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/application/event/OrderEvents.java
+@@ -0,0 +1,13 @@
++package com.orderflow.order.application.event;
++
++/** Kafka contract of the order module's integration events. */
++public final class OrderEvents {
++
++    public static final String TOPIC = "orderflow.order.events";
++
++    /** {@code eventType} header values: the simple class name of the event record. */
++    public static final String PLACED = "OrderPlaced";
++
++    private OrderEvents() {
++    }
++}
+diff --git a/src/main/java/com/orderflow/order/application/event/OrderPlaced.java b/src/main/java/com/orderflow/order/application/event/OrderPlaced.java
+new file mode 100644
+index 0000000..c42e963
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/application/event/OrderPlaced.java
+@@ -0,0 +1,10 @@
++package com.orderflow.order.application.event;
++
++import java.math.BigDecimal;
++import java.time.Instant;
++import java.util.UUID;
++
++/** Published once for every stored order (record key: order ID). */
++public record OrderPlaced(UUID orderId, String customerId, String currency, BigDecimal totalAmount,
++                          Instant placedAt) {
++}
+diff --git a/src/main/java/com/orderflow/order/application/port/out/OrderEventPublisher.java b/src/main/java/com/orderflow/order/application/port/out/OrderEventPublisher.java
+new file mode 100644
+index 0000000..756afbb
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/application/port/out/OrderEventPublisher.java
+@@ -0,0 +1,9 @@
++package com.orderflow.order.application.port.out;
++
++import com.orderflow.order.application.event.OrderPlaced;
++
++/** Publishes integration events in the caller's transaction (published if and only if it commits). */
++public interface OrderEventPublisher {
++
++    void orderPlaced(OrderPlaced event);
++}
+diff --git a/src/main/java/com/orderflow/order/application/service/CreateOrderService.java b/src/main/java/com/orderflow/order/application/service/CreateOrderService.java
+index 3f2842c..e0d411a 100644
+--- a/src/main/java/com/orderflow/order/application/service/CreateOrderService.java
++++ b/src/main/java/com/orderflow/order/application/service/CreateOrderService.java
+@@ -1,8 +1,10 @@
+ package com.orderflow.order.application.service;
+ 
++import com.orderflow.order.application.event.OrderPlaced;
+ import com.orderflow.order.application.port.in.CreateOrderCommand;
+ import com.orderflow.order.application.port.in.CreateOrderUseCase;
+ import com.orderflow.order.application.port.in.OrderResult;
++import com.orderflow.order.application.port.out.OrderEventPublisher;
+ import com.orderflow.order.application.port.out.OrderMetrics;
+ import com.orderflow.order.application.port.out.OrderRepository;
+ import com.orderflow.order.domain.Order;
+@@ -21,11 +23,14 @@ import java.util.Objects;
+ public class CreateOrderService implements CreateOrderUseCase {
+ 
+     private final OrderRepository orderRepository;
++    private final OrderEventPublisher eventPublisher;
+     private final OrderMetrics metrics;
+     private final Clock clock;
+ 
+-    public CreateOrderService(OrderRepository orderRepository, OrderMetrics metrics, Clock clock) {
++    public CreateOrderService(OrderRepository orderRepository, OrderEventPublisher eventPublisher,
++                              OrderMetrics metrics, Clock clock) {
+         this.orderRepository = orderRepository;
++        this.eventPublisher = eventPublisher;
+         this.metrics = metrics;
+         this.clock = clock;
+     }
+@@ -42,6 +47,8 @@ public class CreateOrderService implements CreateOrderUseCase {
+ 
+         Order order = Order.create(OrderId.newId(), command.customerId(), lines, clock.instant());
+         orderRepository.save(order);
++        eventPublisher.orderPlaced(new OrderPlaced(order.id().value(), order.customerId(),
++                order.currency().getCurrencyCode(), order.total().amount(), order.createdAt()));
+         metrics.orderCreated();
+         return OrderResult.from(order);
+     }
+diff --git a/src/main/java/com/orderflow/payment/adapter/in/event/OrderPlacedListener.java b/src/main/java/com/orderflow/payment/adapter/in/event/OrderPlacedListener.java
+new file mode 100644
+index 0000000..c2122c3
+--- /dev/null
++++ b/src/main/java/com/orderflow/payment/adapter/in/event/OrderPlacedListener.java
+@@ -0,0 +1,70 @@
++package com.orderflow.payment.adapter.in.event;
++
++import com.orderflow.payment.application.port.in.RecordOrderAwaitingPaymentUseCase;
++import com.orderflow.payment.application.port.in.RecordOrderAwaitingPaymentUseCase.PlacedOrder;
++import org.apache.kafka.clients.consumer.ConsumerRecord;
++import org.apache.kafka.common.header.Header;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++import org.springframework.kafka.annotation.KafkaListener;
++import org.springframework.stereotype.Component;
++import tools.jackson.databind.json.JsonMapper;
++
++import java.math.BigDecimal;
++import java.nio.charset.StandardCharsets;
++import java.time.Instant;
++import java.util.UUID;
++
++/**
++ * Consumes OrderPlaced from the order module. The topic, headers and JSON are the contract: the payment module
++ * reads them into its own record instead of importing the order module's event class, because the order module
++ * already depends on payment's events and an import would create a module cycle (architecture rule 9).
++ */
++@Component
++class OrderPlacedListener {
++
++    /** Same values as order's {@code OrderEvents}; duplicated on purpose (see class comment). */
++    static final String TOPIC = "orderflow.order.events";
++    static final String ORDER_PLACED = "OrderPlaced";
++
++    private static final Logger LOG = LoggerFactory.getLogger(OrderPlacedListener.class);
++
++    private final RecordOrderAwaitingPaymentUseCase recordOrder;
++    private final JsonMapper jsonMapper;
++
++    OrderPlacedListener(RecordOrderAwaitingPaymentUseCase recordOrder, JsonMapper jsonMapper) {
++        this.recordOrder = recordOrder;
++        this.jsonMapper = jsonMapper;
++    }
++
++    @KafkaListener(topics = TOPIC, groupId = "orderflow-payment")
++    void onOrderEvent(ConsumerRecord<String, String> record) {
++        if (!ORDER_PLACED.equals(header(record, "eventType"))) {
++            return;
++        }
++        UUID eventId = UUID.fromString(require(header(record, "eventId"), "eventId header", record));
++        OrderPlacedMessage message = jsonMapper.readValue(record.value(), OrderPlacedMessage.class);
++        recordOrder.record(new PlacedOrder(eventId, require(message.orderId(), "orderId", record),
++                require(message.currency(), "currency", record), require(message.totalAmount(), "totalAmount", record),
++                require(message.placedAt(), "placedAt", record)));
++        LOG.info("Order {} awaiting payment", message.orderId());
++    }
++
++    /** The fields the payment module needs; others (e.g. customerId) are ignored. */
++    record OrderPlacedMessage(UUID orderId, String currency, BigDecimal totalAmount, Instant placedAt) {
++    }
++
++    /** @throws IllegalArgumentException (not retried, dead-lettered) if a required value is missing */
++    private static <T> T require(T value, String name, ConsumerRecord<?, ?> record) {
++        if (value == null) {
++            throw new IllegalArgumentException("Missing " + name + " in event at " + record.topic() + "-"
++                    + record.partition() + "@" + record.offset());
++        }
++        return value;
++    }
++
++    private static String header(ConsumerRecord<?, ?> record, String name) {
++        Header header = record.headers().lastHeader(name);
++        return header == null ? null : new String(header.value(), StandardCharsets.UTF_8);
++    }
++}
+diff --git a/src/main/java/com/orderflow/payment/adapter/out/messaging/PaymentProcessedEventStoreAdapter.java b/src/main/java/com/orderflow/payment/adapter/out/messaging/PaymentProcessedEventStoreAdapter.java
+new file mode 100644
+index 0000000..508fbc5
+--- /dev/null
++++ b/src/main/java/com/orderflow/payment/adapter/out/messaging/PaymentProcessedEventStoreAdapter.java
+@@ -0,0 +1,25 @@
++package com.orderflow.payment.adapter.out.messaging;
++
++import com.orderflow.payment.application.port.out.PaymentProcessedEventStore;
++import com.orderflow.platform.messaging.api.ProcessedEvents;
++import org.springframework.stereotype.Component;
++
++import java.util.UUID;
++
++@Component
++class PaymentProcessedEventStoreAdapter implements PaymentProcessedEventStore {
++
++    /** Deduplication scope: events consumed by the payment module. */
++    static final String CONSUMER = "payment";
++
++    private final ProcessedEvents processedEvents;
++
++    PaymentProcessedEventStoreAdapter(ProcessedEvents processedEvents) {
++        this.processedEvents = processedEvents;
++    }
++
++    @Override
++    public boolean markProcessed(UUID eventId) {
++        return processedEvents.markProcessed(eventId, CONSUMER);
++    }
++}
+diff --git a/src/main/java/com/orderflow/payment/adapter/out/persistence/JdbcOrdersAwaitingPayment.java b/src/main/java/com/orderflow/payment/adapter/out/persistence/JdbcOrdersAwaitingPayment.java
+new file mode 100644
+index 0000000..2bdbf1a
+--- /dev/null
++++ b/src/main/java/com/orderflow/payment/adapter/out/persistence/JdbcOrdersAwaitingPayment.java
+@@ -0,0 +1,31 @@
++package com.orderflow.payment.adapter.out.persistence;
++
++import com.orderflow.payment.application.port.out.OrdersAwaitingPayment;
++import com.orderflow.payment.domain.OrderAwaitingPayment;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.stereotype.Component;
++
++import java.sql.Timestamp;
++import java.time.Instant;
++
++@Component
++class JdbcOrdersAwaitingPayment implements OrdersAwaitingPayment {
++
++    private final JdbcTemplate jdbcTemplate;
++
++    JdbcOrdersAwaitingPayment(JdbcTemplate jdbcTemplate) {
++        this.jdbcTemplate = jdbcTemplate;
++    }
++
++    /** ON CONFLICT: an order is recorded once, even if it was announced twice under different event IDs. */
++    @Override
++    public void add(OrderAwaitingPayment order, Instant receivedAt) {
++        jdbcTemplate.update("""
++                        INSERT INTO payment.orders_awaiting_payment
++                            (order_id, currency, total_amount, placed_at, received_at)
++                        VALUES (?, ?, ?, ?, ?)
++                        ON CONFLICT (order_id) DO NOTHING""",
++                order.orderId(), order.total().currency().getCurrencyCode(), order.total().amount(),
++                Timestamp.from(order.placedAt()), Timestamp.from(receivedAt));
++    }
++}
+diff --git a/src/main/java/com/orderflow/payment/application/port/in/RecordOrderAwaitingPaymentUseCase.java b/src/main/java/com/orderflow/payment/application/port/in/RecordOrderAwaitingPaymentUseCase.java
+new file mode 100644
+index 0000000..e6e6b4b
+--- /dev/null
++++ b/src/main/java/com/orderflow/payment/application/port/in/RecordOrderAwaitingPaymentUseCase.java
+@@ -0,0 +1,14 @@
++package com.orderflow.payment.application.port.in;
++
++import java.math.BigDecimal;
++import java.time.Instant;
++import java.util.UUID;
++
++public interface RecordOrderAwaitingPaymentUseCase {
++
++    /** Records a placed order once; a redelivered event (same {@code eventId}) changes nothing. */
++    void record(PlacedOrder order);
++
++    record PlacedOrder(UUID eventId, UUID orderId, String currency, BigDecimal totalAmount, Instant placedAt) {
++    }
++}
+diff --git a/src/main/java/com/orderflow/payment/application/port/out/OrdersAwaitingPayment.java b/src/main/java/com/orderflow/payment/application/port/out/OrdersAwaitingPayment.java
+new file mode 100644
+index 0000000..cdd100a
+--- /dev/null
++++ b/src/main/java/com/orderflow/payment/application/port/out/OrdersAwaitingPayment.java
+@@ -0,0 +1,10 @@
++package com.orderflow.payment.application.port.out;
++
++import com.orderflow.payment.domain.OrderAwaitingPayment;
++
++import java.time.Instant;
++
++public interface OrdersAwaitingPayment {
++
++    void add(OrderAwaitingPayment order, Instant receivedAt);
++}
+diff --git a/src/main/java/com/orderflow/payment/application/port/out/PaymentProcessedEventStore.java b/src/main/java/com/orderflow/payment/application/port/out/PaymentProcessedEventStore.java
+new file mode 100644
+index 0000000..612732b
+--- /dev/null
++++ b/src/main/java/com/orderflow/payment/application/port/out/PaymentProcessedEventStore.java
+@@ -0,0 +1,10 @@
++package com.orderflow.payment.application.port.out;
++
++import java.util.UUID;
++
++/** Deduplication of events consumed by the payment module; must join the caller's transaction. */
++public interface PaymentProcessedEventStore {
++
++    /** @return {@code true} the first time, {@code false} if the event was already processed */
++    boolean markProcessed(UUID eventId);
++}
+diff --git a/src/main/java/com/orderflow/payment/application/service/RecordOrderAwaitingPaymentService.java b/src/main/java/com/orderflow/payment/application/service/RecordOrderAwaitingPaymentService.java
+new file mode 100644
+index 0000000..26cc7a0
+--- /dev/null
++++ b/src/main/java/com/orderflow/payment/application/service/RecordOrderAwaitingPaymentService.java
+@@ -0,0 +1,37 @@
++package com.orderflow.payment.application.service;
++
++import com.orderflow.payment.application.port.in.RecordOrderAwaitingPaymentUseCase;
++import com.orderflow.payment.application.port.out.OrdersAwaitingPayment;
++import com.orderflow.payment.application.port.out.PaymentProcessedEventStore;
++import com.orderflow.payment.domain.OrderAwaitingPayment;
++import com.orderflow.shared.domain.Money;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.annotation.Transactional;
++
++import java.time.Clock;
++
++/** Deduplication row and the stored order commit together, as in the order module (ADR-0003 §5). */
++@Service
++@Transactional
++public class RecordOrderAwaitingPaymentService implements RecordOrderAwaitingPaymentUseCase {
++
++    private final PaymentProcessedEventStore processedEvents;
++    private final OrdersAwaitingPayment ordersAwaitingPayment;
++    private final Clock clock;
++
++    public RecordOrderAwaitingPaymentService(PaymentProcessedEventStore processedEvents,
++                                             OrdersAwaitingPayment ordersAwaitingPayment, Clock clock) {
++        this.processedEvents = processedEvents;
++        this.ordersAwaitingPayment = ordersAwaitingPayment;
++        this.clock = clock;
++    }
++
++    @Override
++    public void record(PlacedOrder order) {
++        if (!processedEvents.markProcessed(order.eventId())) {
++            return;
++        }
++        ordersAwaitingPayment.add(new OrderAwaitingPayment(order.orderId(),
++                Money.of(order.totalAmount(), order.currency()), order.placedAt()), clock.instant());
++    }
++}
+diff --git a/src/main/java/com/orderflow/payment/domain/OrderAwaitingPayment.java b/src/main/java/com/orderflow/payment/domain/OrderAwaitingPayment.java
+new file mode 100644
+index 0000000..fe25ef9
+--- /dev/null
++++ b/src/main/java/com/orderflow/payment/domain/OrderAwaitingPayment.java
+@@ -0,0 +1,17 @@
++package com.orderflow.payment.domain;
++
++import com.orderflow.shared.domain.Money;
++
++import java.time.Instant;
++import java.util.Objects;
++import java.util.UUID;
++
++/** An order placed in the order module that the payment module knows about and that has not been paid yet. */
++public record OrderAwaitingPayment(UUID orderId, Money total, Instant placedAt) {
++
++    public OrderAwaitingPayment {
++        Objects.requireNonNull(orderId, "orderId");
++        Objects.requireNonNull(total, "total");
++        Objects.requireNonNull(placedAt, "placedAt");
++    }
++}
+diff --git a/src/main/resources/db/migration/V6__create_payment_schema.sql b/src/main/resources/db/migration/V6__create_payment_schema.sql
+new file mode 100644
+index 0000000..bf2b3dc
+--- /dev/null
++++ b/src/main/resources/db/migration/V6__create_payment_schema.sql
+@@ -0,0 +1,11 @@
++-- Payment module owns the "payment" schema (ADR-0001). Its copy of placed orders (T08), filled from OrderPlaced
++-- events; no foreign key to the orders schema (rule 11).
++CREATE SCHEMA IF NOT EXISTS payment;
++
++CREATE TABLE payment.orders_awaiting_payment (
++    order_id     UUID           PRIMARY KEY,
++    currency     VARCHAR(3)     NOT NULL,
++    total_amount NUMERIC(19, 4) NOT NULL,
++    placed_at    TIMESTAMPTZ    NOT NULL,
++    received_at  TIMESTAMPTZ    NOT NULL
++);
+diff --git a/src/test/java/com/orderflow/order/CreateOrderIT.java b/src/test/java/com/orderflow/order/CreateOrderIT.java
+index 8b0a811..4ccd131 100644
+--- a/src/test/java/com/orderflow/order/CreateOrderIT.java
++++ b/src/test/java/com/orderflow/order/CreateOrderIT.java
+@@ -59,6 +59,10 @@ class CreateOrderIT {
+                 .containsEntry("currency", "EUR");
+         assertThat(jdbcTemplate.queryForObject(
+                 "SELECT count(*) FROM orders.order_lines WHERE order_id = ?", Integer.class, id)).isEqualTo(2);
++        assertThat(jdbcTemplate.queryForObject("""
++                        SELECT count(*) FROM messaging.outbox_events
++                        WHERE topic = 'orderflow.order.events' AND msg_key = ? AND event_type = 'OrderPlaced'""",
++                Integer.class, id.toString())).as("OrderPlaced in the outbox, same transaction").isEqualTo(1);
+     }
+ 
+     @Test
+diff --git a/src/test/java/com/orderflow/order/application/service/CreateOrderServiceTest.java b/src/test/java/com/orderflow/order/application/service/CreateOrderServiceTest.java
+index 7d2bb28..6264b81 100644
+--- a/src/test/java/com/orderflow/order/application/service/CreateOrderServiceTest.java
++++ b/src/test/java/com/orderflow/order/application/service/CreateOrderServiceTest.java
+@@ -1,5 +1,6 @@
+ package com.orderflow.order.application.service;
+ 
++import com.orderflow.order.application.event.OrderPlaced;
+ import com.orderflow.order.application.port.in.CreateOrderCommand;
+ import com.orderflow.order.application.port.in.OrderResult;
+ import com.orderflow.order.domain.InvalidOrderException;
+@@ -23,8 +24,9 @@ class CreateOrderServiceTest {
+ 
+     private final InMemoryOrderRepository repository = new InMemoryOrderRepository();
+     private final RecordingOrderMetrics metrics = new RecordingOrderMetrics();
++    private final RecordingOrderEventPublisher events = new RecordingOrderEventPublisher();
+     private final CreateOrderService service =
+-            new CreateOrderService(repository, metrics, Clock.fixed(NOW, ZoneOffset.UTC));
++            new CreateOrderService(repository, events, metrics, Clock.fixed(NOW, ZoneOffset.UTC));
+ 
+     @Test
+     void createsAndSavesOrder() {
+@@ -34,6 +36,8 @@ class CreateOrderServiceTest {
+ 
+         assertThat(repository.saved).hasSize(1);
+         assertThat(metrics.recorded).containsExactly("orderCreated");
++        assertThat(events.published).containsExactly(new OrderPlaced(
++                repository.saved.getFirst().id().value(), "c-1", "EUR", new BigDecimal("44.98"), NOW));
+         Order saved = repository.saved.getFirst();
+         assertThat(saved.status()).isEqualTo(OrderStatus.CREATED);
+         assertThat(saved.createdAt()).isEqualTo(NOW);
+@@ -67,6 +71,7 @@ class CreateOrderServiceTest {
+ 
+         assertThat(repository.saved).isEmpty();
+         assertThat(metrics.recorded).isEmpty();
++        assertThat(events.published).isEmpty();
+     }
+ 
+     @Test
+diff --git a/src/test/java/com/orderflow/order/application/service/RecordingOrderEventPublisher.java b/src/test/java/com/orderflow/order/application/service/RecordingOrderEventPublisher.java
+new file mode 100644
+index 0000000..df31cf5
+--- /dev/null
++++ b/src/test/java/com/orderflow/order/application/service/RecordingOrderEventPublisher.java
+@@ -0,0 +1,18 @@
++package com.orderflow.order.application.service;
++
++import com.orderflow.order.application.event.OrderPlaced;
++import com.orderflow.order.application.port.out.OrderEventPublisher;
++
++import java.util.ArrayList;
++import java.util.List;
++
++/** Fake {@link OrderEventPublisher} that records published events. */
++class RecordingOrderEventPublisher implements OrderEventPublisher {
++
++    final List<Object> published = new ArrayList<>();
++
++    @Override
++    public void orderPlaced(OrderPlaced event) {
++        published.add(event);
++    }
++}
+diff --git a/src/test/java/com/orderflow/payment/adapter/in/event/OrderPlacedListenerIT.java b/src/test/java/com/orderflow/payment/adapter/in/event/OrderPlacedListenerIT.java
+new file mode 100644
+index 0000000..40caa82
+--- /dev/null
++++ b/src/test/java/com/orderflow/payment/adapter/in/event/OrderPlacedListenerIT.java
+@@ -0,0 +1,63 @@
++package com.orderflow.payment.adapter.in.event;
++
++import com.orderflow.KafkaTestcontainersConfiguration;
++import com.orderflow.TestcontainersConfiguration;
++import org.apache.kafka.clients.producer.ProducerRecord;
++import org.junit.jupiter.api.Test;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.test.context.SpringBootTest;
++import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
++import org.springframework.context.annotation.Import;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.kafka.core.KafkaTemplate;
++
++import java.nio.charset.StandardCharsets;
++import java.time.Duration;
++import java.util.UUID;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.awaitility.Awaitility.await;
++
++/** OrderPlaced consumed by the payment module through the real listener, Kafka and PostgreSQL. */
++@SpringBootTest
++@AutoConfigureMockMvc
++@Import({TestcontainersConfiguration.class, KafkaTestcontainersConfiguration.class})
++class OrderPlacedListenerIT {
++
++    @Autowired
++    private KafkaTemplate<String, String> kafkaTemplate;
++
++    @Autowired
++    private JdbcTemplate jdbcTemplate;
++
++    @Test
++    void storesThePlacedOrderOnceEvenIfRedelivered() {
++        UUID orderId = UUID.randomUUID();
++        UUID eventId = UUID.randomUUID();
++        UUID marker = UUID.randomUUID();
++
++        publish(eventId, orderId);
++        publish(eventId, orderId);
++        publish(UUID.randomUUID(), marker);
++
++        await().atMost(Duration.ofSeconds(30)).until(() -> rows(marker) == 1);
++        assertThat(rows(orderId)).isEqualTo(1);
++        assertThat(jdbcTemplate.queryForObject(
++                "SELECT total_amount FROM payment.orders_awaiting_payment WHERE order_id = ?", String.class, orderId))
++                .isEqualTo("39.9800");
++    }
++
++    private void publish(UUID eventId, UUID orderId) {
++        ProducerRecord<String, String> record = new ProducerRecord<>(OrderPlacedListener.TOPIC, orderId.toString(),
++                "{\"orderId\":\"" + orderId + "\",\"customerId\":\"c-1\",\"currency\":\"EUR\","
++                        + "\"totalAmount\":39.98,\"placedAt\":\"2026-10-30T12:00:00Z\"}");
++        record.headers().add("eventId", eventId.toString().getBytes(StandardCharsets.UTF_8));
++        record.headers().add("eventType", OrderPlacedListener.ORDER_PLACED.getBytes(StandardCharsets.UTF_8));
++        kafkaTemplate.send(record).join();
++    }
++
++    private int rows(UUID orderId) {
++        return jdbcTemplate.queryForObject(
++                "SELECT count(*) FROM payment.orders_awaiting_payment WHERE order_id = ?", Integer.class, orderId);
++    }
++}
+diff --git a/src/test/java/com/orderflow/payment/application/service/RecordOrderAwaitingPaymentServiceTest.java b/src/test/java/com/orderflow/payment/application/service/RecordOrderAwaitingPaymentServiceTest.java
+new file mode 100644
+index 0000000..82ec4eb
+--- /dev/null
++++ b/src/test/java/com/orderflow/payment/application/service/RecordOrderAwaitingPaymentServiceTest.java
+@@ -0,0 +1,53 @@
++package com.orderflow.payment.application.service;
++
++import com.orderflow.payment.application.port.in.RecordOrderAwaitingPaymentUseCase.PlacedOrder;
++import com.orderflow.payment.application.port.out.OrdersAwaitingPayment;
++import com.orderflow.payment.application.port.out.PaymentProcessedEventStore;
++import com.orderflow.payment.domain.OrderAwaitingPayment;
++import com.orderflow.shared.domain.Money;
++import org.junit.jupiter.api.Test;
++
++import java.math.BigDecimal;
++import java.time.Clock;
++import java.time.Instant;
++import java.time.ZoneOffset;
++import java.util.ArrayList;
++import java.util.HashSet;
++import java.util.List;
++import java.util.Set;
++import java.util.UUID;
++
++import static org.assertj.core.api.Assertions.assertThat;
++
++class RecordOrderAwaitingPaymentServiceTest {
++
++    private static final Instant PLACED = Instant.parse("2026-10-30T12:00:00Z");
++    private static final Instant NOW = Instant.parse("2026-10-30T12:00:01Z");
++
++    private final Set<UUID> processed = new HashSet<>();
++    private final List<OrderAwaitingPayment> stored = new ArrayList<>();
++    private final PaymentProcessedEventStore processedEvents = processed::add;
++    private final OrdersAwaitingPayment orders = (order, receivedAt) -> stored.add(order);
++    private final RecordOrderAwaitingPaymentService service =
++            new RecordOrderAwaitingPaymentService(processedEvents, orders, Clock.fixed(NOW, ZoneOffset.UTC));
++
++    @Test
++    void storesThePlacedOrder() {
++        UUID orderId = UUID.randomUUID();
++
++        service.record(new PlacedOrder(UUID.randomUUID(), orderId, "EUR", new BigDecimal("39.98"), PLACED));
++
++        assertThat(stored).containsExactly(
++                new OrderAwaitingPayment(orderId, Money.of(new BigDecimal("39.98"), "EUR"), PLACED));
++    }
++
++    @Test
++    void redeliveredEventIsStoredOnce() {
++        PlacedOrder event = new PlacedOrder(UUID.randomUUID(), UUID.randomUUID(), "EUR", BigDecimal.TEN, PLACED);
++
++        service.record(event);
++        service.record(event);
++
++        assertThat(stored).hasSize(1);
++    }
++}

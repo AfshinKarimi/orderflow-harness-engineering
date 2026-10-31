@@ -4,6 +4,7 @@ AI-assisted order processing platform. Modular monolith following Hexagonal Arch
 
 - Architecture: [docs/architecture/architecture.md](docs/architecture/architecture.md)
 - Decisions: [docs/adr](docs/adr)
+- Harness benchmark (design): [docs/benchmark/benchmark-design.md](docs/benchmark/benchmark-design.md)
 - Metrics, dashboard, logging: [docs/operations/observability.md](docs/operations/observability.md) · troubleshooting: [runbook](docs/operations/runbook.md)
 
 ## Stack

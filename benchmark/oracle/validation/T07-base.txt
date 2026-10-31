@@ -1,0 +1,8 @@
+ok   FAILED  (expected FAILED/ERROR) T07PaymentFeeOracleIT.feeHasTwoDecimals
+ok   FAILED  (expected FAILED/ERROR) T07PaymentFeeOracleIT.rejectsInvalidAndUnknownOrders
+ok   FAILED  (expected FAILED/ERROR) T07PaymentFeeOracleIT.feeIsOnePointFivePercentOfTheTotal
+ok   FAILED  (expected FAILED/ERROR) T07PaymentFeeOracleIT.feeIsRoundedHalfUp
+ok   FAILED  (expected FAILED/ERROR) T07PaymentFeeOracleIT.responseNamesTheOrderTotalAndCurrency
+ok   FAILED  (expected FAILED/ERROR) T07PaymentFeeOracleIT.feeIsAtLeastFiftyCents
+
+base: 6 task oracle tests, 6 test cases in total, 0 problem(s)

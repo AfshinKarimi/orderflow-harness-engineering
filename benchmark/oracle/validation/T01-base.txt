@@ -1,0 +1,8 @@
+ok   FAILED  (expected FAILED/ERROR) T01ListOrdersOracleIT.rejectsInvalidParameters
+ok   FAILED  (expected FAILED/ERROR) T01ListOrdersOracleIT.listsOnlyTheCustomersOrdersNewestFirst
+ok   FAILED  (expected FAILED/ERROR) T01ListOrdersOracleIT.defaultsPageAndSize
+ok   FAILED  (expected FAILED/ERROR) T01ListOrdersOracleIT.itemsHaveTheSameFormatAsGetById
+ok   FAILED  (expected FAILED/ERROR) T01ListOrdersOracleIT.pagesThroughOrders
+ok   FAILED  (expected FAILED/ERROR) T01ListOrdersOracleIT.customerWithoutOrders
+
+base: 6 task oracle tests, 6 test cases in total, 0 problem(s)

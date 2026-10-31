@@ -137,5 +137,10 @@ sequenceDiagram
 
 - **Reliable event delivery:** resolved by the transactional outbox (ADR-0003).
   Remaining: outbox cleanup and retention, a way to inspect and replay `<topic>.DLT` records.
+- **Module cycles through events (rule 9 vs. ADR-0002):** `order` depends on `payment.application.event`, so
+  `payment` cannot depend on anything in `order`, not even its events or `port.in`. ADR-0002's flow (payment reacts to
+  order events) therefore needs either consumer-owned message records (JSON contract, no compile-time dependency) or a
+  rule change that ignores `application.event` dependencies. Decide in an ADR before the payment module is built.
+  (Found while building benchmark task T07/T08, 2026-10-30.)
 - **Alerting:** metrics exist and alert rules are proposed ([observability.md](../operations/observability.md)), but no
   monitoring stack is deployed yet.

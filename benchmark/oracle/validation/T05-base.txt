@@ -1,0 +1,6 @@
+ok   FAILED  (expected FAILED/ERROR) T05LegacyDataOracleIT.existingOrderHasNoAddress
+ok   FAILED  (expected FAILED/ERROR) T05ShippingAddressOracleIT.invalidFieldsAreRejected
+ok   FAILED  (expected FAILED/ERROR) T05ShippingAddressOracleIT.addressIsRequired
+ok   FAILED  (expected FAILED/ERROR) T05ShippingAddressOracleIT.addressIsStoredAndReturned
+
+base: 4 task oracle tests, 4 test cases in total, 0 problem(s)

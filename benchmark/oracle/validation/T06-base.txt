@@ -1,0 +1,7 @@
+ok   FAILED  (expected FAILED/ERROR) T06LegacyDataOracleIT.existingOrderIsBackfilledWithItsCreation
+ok   FAILED  (expected FAILED/ERROR) T06StatusHistoryOracleIT.duplicateEventAddsNoEntry
+ok   FAILED  (expected FAILED/ERROR) T06StatusHistoryOracleIT.paymentResultAddsAnEntry
+ok   FAILED  (expected FAILED/ERROR) T06StatusHistoryOracleIT.newOrderHasOneCreatedEntry
+ok   FAILED  (expected FAILED/ERROR) T06StatusHistoryOracleIT.staleResultAddsNoEntry
+
+base: 5 task oracle tests, 5 test cases in total, 0 problem(s)

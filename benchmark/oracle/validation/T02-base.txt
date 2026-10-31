@@ -1,0 +1,8 @@
+ok   FAILED  (expected FAILED/ERROR) T02CancelOrderOracleIT.rejectsUnknownAndInvalidIds
+ok   FAILED  (expected FAILED/ERROR) T02CancelOrderOracleIT.cancelsACreatedOrder
+ok   FAILED  (expected FAILED/ERROR) T02CancelOrderOracleIT.rejectsPendingAndPaidOrders
+ok   FAILED  (expected FAILED/ERROR) T02CancelOrderOracleIT.cancelsAnOrderWhosePaymentFailed
+ok   FAILED  (expected FAILED/ERROR) T02CancelOrderOracleIT.latePaymentResultDoesNotChangeACancelledOrder
+ok   FAILED  (expected FAILED/ERROR) T02CancelOrderOracleIT.cancellingTwiceIsHarmless
+
+base: 6 task oracle tests, 6 test cases in total, 0 problem(s)

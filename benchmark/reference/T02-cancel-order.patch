@@ -1,0 +1,496 @@
+diff --git a/src/main/java/com/orderflow/order/adapter/in/web/OrderApiExceptionHandler.java b/src/main/java/com/orderflow/order/adapter/in/web/OrderApiExceptionHandler.java
+index 68d9b04..da254fd 100644
+--- a/src/main/java/com/orderflow/order/adapter/in/web/OrderApiExceptionHandler.java
++++ b/src/main/java/com/orderflow/order/adapter/in/web/OrderApiExceptionHandler.java
+@@ -1,6 +1,7 @@
+ package com.orderflow.order.adapter.in.web;
+ 
+ import com.orderflow.order.application.port.in.OrderNotFoundException;
++import com.orderflow.order.domain.InvalidOrderStateException;
+ import com.orderflow.shared.domain.DomainException;
+ import org.springframework.http.HttpHeaders;
+ import org.springframework.http.HttpStatus;
+@@ -30,6 +31,14 @@ class OrderApiExceptionHandler extends ResponseEntityExceptionHandler {
+         return problem;
+     }
+ 
++    /** The request is valid but conflicts with the order's current status (e.g. cancelling a paid order). */
++    @ExceptionHandler(InvalidOrderStateException.class)
++    ProblemDetail handleInvalidOrderState(InvalidOrderStateException exception) {
++        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
++        problem.setTitle("Order status does not allow this");
++        return problem;
++    }
++
+     @ExceptionHandler(OrderNotFoundException.class)
+     ProblemDetail handleOrderNotFound(OrderNotFoundException exception) {
+         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+diff --git a/src/main/java/com/orderflow/order/adapter/in/web/OrderController.java b/src/main/java/com/orderflow/order/adapter/in/web/OrderController.java
+index 077fb4b..f0c9ba3 100644
+--- a/src/main/java/com/orderflow/order/adapter/in/web/OrderController.java
++++ b/src/main/java/com/orderflow/order/adapter/in/web/OrderController.java
+@@ -1,5 +1,6 @@
+ package com.orderflow.order.adapter.in.web;
+ 
++import com.orderflow.order.application.port.in.CancelOrderUseCase;
+ import com.orderflow.order.application.port.in.CreateOrderUseCase;
+ import com.orderflow.order.application.port.in.GetOrderUseCase;
+ import com.orderflow.order.application.port.in.OrderResult;
+@@ -23,10 +24,13 @@ class OrderController {
+ 
+     private final CreateOrderUseCase createOrderUseCase;
+     private final GetOrderUseCase getOrderUseCase;
++    private final CancelOrderUseCase cancelOrderUseCase;
+ 
+-    OrderController(CreateOrderUseCase createOrderUseCase, GetOrderUseCase getOrderUseCase) {
++    OrderController(CreateOrderUseCase createOrderUseCase, GetOrderUseCase getOrderUseCase,
++                    CancelOrderUseCase cancelOrderUseCase) {
+         this.createOrderUseCase = createOrderUseCase;
+         this.getOrderUseCase = getOrderUseCase;
++        this.cancelOrderUseCase = cancelOrderUseCase;
+     }
+ 
+     @PostMapping
+@@ -40,4 +44,9 @@ class OrderController {
+     OrderResponse get(@PathVariable UUID orderId) {
+         return OrderResponse.from(getOrderUseCase.get(orderId));
+     }
++
++    @PostMapping("/{orderId}/cancellation")
++    OrderResponse cancel(@PathVariable UUID orderId) {
++        return OrderResponse.from(cancelOrderUseCase.cancel(orderId));
++    }
+ }
+diff --git a/src/main/java/com/orderflow/order/application/port/in/CancelOrderUseCase.java b/src/main/java/com/orderflow/order/application/port/in/CancelOrderUseCase.java
+new file mode 100644
+index 0000000..c40c765
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/application/port/in/CancelOrderUseCase.java
+@@ -0,0 +1,14 @@
++package com.orderflow.order.application.port.in;
++
++import java.util.UUID;
++
++public interface CancelOrderUseCase {
++
++    /**
++     * Cancels the order, or returns it unchanged if it is already cancelled.
++     *
++     * @throws OrderNotFoundException if no order has this ID
++     * @throws com.orderflow.order.domain.InvalidOrderStateException if a payment is pending or the order is paid
++     */
++    OrderResult cancel(UUID orderId);
++}
+diff --git a/src/main/java/com/orderflow/order/application/service/CancelOrderService.java b/src/main/java/com/orderflow/order/application/service/CancelOrderService.java
+new file mode 100644
+index 0000000..60b3f10
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/application/service/CancelOrderService.java
+@@ -0,0 +1,33 @@
++package com.orderflow.order.application.service;
++
++import com.orderflow.order.application.port.in.CancelOrderUseCase;
++import com.orderflow.order.application.port.in.OrderNotFoundException;
++import com.orderflow.order.application.port.in.OrderResult;
++import com.orderflow.order.application.port.out.OrderRepository;
++import com.orderflow.order.domain.Order;
++import com.orderflow.order.domain.OrderId;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.annotation.Transactional;
++
++import java.util.UUID;
++
++@Service
++@Transactional
++public class CancelOrderService implements CancelOrderUseCase {
++
++    private final OrderRepository orderRepository;
++
++    public CancelOrderService(OrderRepository orderRepository) {
++        this.orderRepository = orderRepository;
++    }
++
++    @Override
++    public OrderResult cancel(UUID orderId) {
++        Order order = orderRepository.findById(new OrderId(orderId))
++                .orElseThrow(() -> new OrderNotFoundException(orderId));
++        if (order.cancel()) {
++            orderRepository.save(order);
++        }
++        return OrderResult.from(order);
++    }
++}
+diff --git a/src/main/java/com/orderflow/order/domain/Order.java b/src/main/java/com/orderflow/order/domain/Order.java
+index 1cce11b..a26e83b 100644
+--- a/src/main/java/com/orderflow/order/domain/Order.java
++++ b/src/main/java/com/orderflow/order/domain/Order.java
+@@ -43,7 +43,8 @@ public class Order {
+     public static Order restore(OrderId id, String customerId, List<OrderLine> lines, OrderStatus status,
+                                 PaymentAttemptId currentPaymentAttempt, Instant createdAt, long version) {
+         Objects.requireNonNull(status, "status");
+-        if ((status == OrderStatus.CREATED) != (currentPaymentAttempt == null)) {
++        // CANCELLED may or may not have an attempt, depending on whether payment was ever requested.
++        if (status != OrderStatus.CANCELLED && (status == OrderStatus.CREATED) != (currentPaymentAttempt == null)) {
+             throw new InvalidOrderException(
+                     "Order in status " + status + " must " + (status == OrderStatus.CREATED ? "not " : "")
+                             + "have a payment attempt");
+@@ -66,6 +67,25 @@ public class Order {
+                 yield currentPaymentAttempt;
+             }
+             case PAID -> throw new InvalidOrderStateException("Order " + id.value() + " is already paid");
++            case CANCELLED -> throw cancelled();
++        };
++    }
++
++    /**
++     * Cancels the order. Allowed until a payment is pending; repeating it is harmless.
++     *
++     * @return {@code true} if the order changed; {@code false} if it was already cancelled
++     * @throws InvalidOrderStateException if a payment is pending or the order is paid
++     */
++    public boolean cancel() {
++        return switch (status) {
++            case CREATED, PAYMENT_FAILED -> {
++                status = OrderStatus.CANCELLED;
++                yield true;
++            }
++            case CANCELLED -> false;
++            case PAYMENT_PENDING, PAID -> throw new InvalidOrderStateException(
++                    "Order " + id.value() + " cannot be cancelled in status " + status);
+         };
+     }
+ 
+@@ -93,6 +113,9 @@ public class Order {
+                 }
+                 throw contradictoryResult(attemptId, "failed", "succeeded");
+             }
++            // Money was taken for a cancelled order: never ignore it silently (dead-lettered, needs a refund).
++            case CANCELLED -> throw new InvalidOrderStateException("Order " + id.value()
++                    + " is cancelled but payment attempt " + attemptId.value() + " succeeded; refund required");
+         };
+     }
+ 
+@@ -113,7 +136,7 @@ public class Order {
+                 status = OrderStatus.PAYMENT_FAILED;
+                 yield true;
+             }
+-            case PAYMENT_FAILED -> false;
++            case PAYMENT_FAILED, CANCELLED -> false;
+             case PAID -> {
+                 if (!attemptId.equals(currentPaymentAttempt)) {
+                     yield false;
+@@ -123,6 +146,10 @@ public class Order {
+         };
+     }
+ 
++    private InvalidOrderStateException cancelled() {
++        return new InvalidOrderStateException("Order " + id.value() + " is cancelled");
++    }
++
+     private InvalidOrderStateException noPaymentRequested() {
+         return new InvalidOrderStateException("No payment was requested for order " + id.value());
+     }
+diff --git a/src/main/java/com/orderflow/order/domain/OrderStatus.java b/src/main/java/com/orderflow/order/domain/OrderStatus.java
+index fc1cf34..7582813 100644
+--- a/src/main/java/com/orderflow/order/domain/OrderStatus.java
++++ b/src/main/java/com/orderflow/order/domain/OrderStatus.java
+@@ -5,5 +5,6 @@ public enum OrderStatus {
+     CREATED,
+     PAYMENT_PENDING,
+     PAID,
+-    PAYMENT_FAILED
++    PAYMENT_FAILED,
++    CANCELLED
+ }
+diff --git a/src/main/resources/db/migration/V6__allow_cancelled_orders.sql b/src/main/resources/db/migration/V6__allow_cancelled_orders.sql
+new file mode 100644
+index 0000000..cd77884
+--- /dev/null
++++ b/src/main/resources/db/migration/V6__allow_cancelled_orders.sql
+@@ -0,0 +1,8 @@
++-- Cancelled orders (T02): an order cancelled before any payment has no attempt, one cancelled after a failed
++-- payment keeps it. The other statuses keep the rule from V4.
++ALTER TABLE orders.orders DROP CONSTRAINT orders_payment_attempt_matches_status;
++
++ALTER TABLE orders.orders ADD CONSTRAINT orders_payment_attempt_matches_status CHECK (
++    status = 'CANCELLED'
++    OR (status = 'CREATED' AND payment_attempt_id IS NULL)
++    OR (status IN ('PAYMENT_PENDING', 'PAID', 'PAYMENT_FAILED') AND payment_attempt_id IS NOT NULL));
+diff --git a/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java b/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
+index d0ce5d0..7839b9b 100644
+--- a/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
++++ b/src/test/java/com/orderflow/order/adapter/in/web/OrderControllerIT.java
+@@ -1,11 +1,13 @@
+ package com.orderflow.order.adapter.in.web;
+ 
++import com.orderflow.order.application.port.in.CancelOrderUseCase;
+ import com.orderflow.order.application.port.in.CreateOrderCommand;
+ import com.orderflow.order.application.port.in.CreateOrderUseCase;
+ import com.orderflow.order.application.port.in.GetOrderUseCase;
+ import com.orderflow.order.application.port.in.OrderNotFoundException;
+ import com.orderflow.order.application.port.in.OrderResult;
+ import com.orderflow.order.domain.InvalidOrderException;
++import com.orderflow.order.domain.InvalidOrderStateException;
+ import org.junit.jupiter.api.Test;
+ import org.springframework.beans.factory.annotation.Autowired;
+ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+@@ -43,6 +45,9 @@ class OrderControllerIT {
+     @MockitoBean
+     private GetOrderUseCase getOrderUseCase;
+ 
++    @MockitoBean
++    private CancelOrderUseCase cancelOrderUseCase;
++
+     @Test
+     void returnsExistingOrder() throws Exception {
+         when(getOrderUseCase.get(ORDER_ID)).thenReturn(new OrderResult(
+@@ -69,6 +74,39 @@ class OrderControllerIT {
+                 .andExpect(jsonPath("$.detail").value("Order " + ORDER_ID + " not found"));
+     }
+ 
++    @Test
++    void cancelsOrderAndReturnsIt() throws Exception {
++        when(cancelOrderUseCase.cancel(ORDER_ID)).thenReturn(new OrderResult(
++                ORDER_ID, "c-1", "CANCELLED", "EUR", new BigDecimal("3.00"),
++                List.of(new OrderResult.Line("p-1", 2, new BigDecimal("1.50"), new BigDecimal("3.00"))),
++                Instant.parse("2026-10-30T12:00:00Z")));
++
++        mockMvc.perform(post("/api/v1/orders/" + ORDER_ID + "/cancellation"))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.id").value(ORDER_ID.toString()))
++                .andExpect(jsonPath("$.status").value("CANCELLED"));
++    }
++
++    @Test
++    void mapsConflictingOrderStatusTo409Problem() throws Exception {
++        when(cancelOrderUseCase.cancel(ORDER_ID)).thenThrow(
++                new InvalidOrderStateException("Order " + ORDER_ID + " cannot be cancelled in status PAID"));
++
++        mockMvc.perform(post("/api/v1/orders/" + ORDER_ID + "/cancellation"))
++                .andExpect(status().isConflict())
++                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
++                .andExpect(jsonPath("$.detail").value("Order " + ORDER_ID + " cannot be cancelled in status PAID"));
++    }
++
++    @Test
++    void returns404ProblemWhenCancellingUnknownOrder() throws Exception {
++        when(cancelOrderUseCase.cancel(ORDER_ID)).thenThrow(new OrderNotFoundException(ORDER_ID));
++
++        mockMvc.perform(post("/api/v1/orders/" + ORDER_ID + "/cancellation"))
++                .andExpect(status().isNotFound())
++                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON));
++    }
++
+     @Test
+     void returns400ForMalformedOrderId() throws Exception {
+         mockMvc.perform(get("/api/v1/orders/not-a-uuid"))
+diff --git a/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java b/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java
+index 4de67c4..1d7c081 100644
+--- a/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java
++++ b/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java
+@@ -123,6 +123,24 @@ class OrderPersistenceAdapterIT {
+         }).isInstanceOf(ObjectOptimisticLockingFailureException.class);
+     }
+ 
++    @Test
++    void cancelledOrdersRoundTripWithAndWithoutAttempt() {
++        Order neverPaid = newOrder();
++        neverPaid.cancel();
++        Order paymentFailed = newOrder();
++        paymentFailed.markPaymentFailed(paymentFailed.requestPayment());
++        paymentFailed.cancel();
++        adapter.save(neverPaid);
++        adapter.save(paymentFailed);
++        entityManager.flush();
++        entityManager.clear();
++
++        assertThat(adapter.findById(neverPaid.id()).orElseThrow().status()).isEqualTo(OrderStatus.CANCELLED);
++        Order restored = adapter.findById(paymentFailed.id()).orElseThrow();
++        assertThat(restored.status()).isEqualTo(OrderStatus.CANCELLED);
++        assertThat(restored.currentPaymentAttempt()).isEqualTo(paymentFailed.currentPaymentAttempt());
++    }
++
+     private static Order newOrder() {
+         return Order.create(OrderId.newId(), "c-1",
+                 List.of(new OrderLine("p-1", 1, Money.of(new BigDecimal("5.00"), "EUR"))),
+diff --git a/src/test/java/com/orderflow/order/application/service/CancelOrderServiceTest.java b/src/test/java/com/orderflow/order/application/service/CancelOrderServiceTest.java
+new file mode 100644
+index 0000000..bdaac85
+--- /dev/null
++++ b/src/test/java/com/orderflow/order/application/service/CancelOrderServiceTest.java
+@@ -0,0 +1,66 @@
++package com.orderflow.order.application.service;
++
++import com.orderflow.order.application.port.in.OrderNotFoundException;
++import com.orderflow.order.domain.InvalidOrderStateException;
++import com.orderflow.order.domain.Order;
++import com.orderflow.order.domain.OrderId;
++import com.orderflow.order.domain.OrderLine;
++import com.orderflow.order.domain.OrderStatus;
++import com.orderflow.shared.domain.Money;
++import org.junit.jupiter.api.BeforeEach;
++import org.junit.jupiter.api.Test;
++
++import java.math.BigDecimal;
++import java.time.Instant;
++import java.util.List;
++import java.util.UUID;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.assertj.core.api.Assertions.assertThatThrownBy;
++
++class CancelOrderServiceTest {
++
++    private final InMemoryOrderRepository repository = new InMemoryOrderRepository();
++    private final CancelOrderService service = new CancelOrderService(repository);
++    private Order order;
++
++    @BeforeEach
++    void storedOrder() {
++        order = Order.create(OrderId.newId(), "c-1",
++                List.of(new OrderLine("p-1", 1, Money.of(new BigDecimal("5.00"), "EUR"))),
++                Instant.parse("2026-10-30T12:00:00Z"));
++        repository.save(order);
++        repository.saved.clear();
++    }
++
++    @Test
++    void cancelsAndSavesTheOrder() {
++        assertThat(service.cancel(order.id().value()).status()).isEqualTo("CANCELLED");
++
++        assertThat(repository.saved).singleElement().extracting(Order::status).isEqualTo(OrderStatus.CANCELLED);
++    }
++
++    @Test
++    void alreadyCancelledOrderIsReturnedWithoutSaving() {
++        service.cancel(order.id().value());
++        repository.saved.clear();
++
++        assertThat(service.cancel(order.id().value()).status()).isEqualTo("CANCELLED");
++        assertThat(repository.saved).isEmpty();
++    }
++
++    @Test
++    void conflictingStatusIsNotSaved() {
++        order.requestPayment();
++
++        assertThatThrownBy(() -> service.cancel(order.id().value())).isInstanceOf(InvalidOrderStateException.class);
++        assertThat(repository.saved).isEmpty();
++    }
++
++    @Test
++    void unknownOrderIsAnError() {
++        UUID unknown = UUID.randomUUID();
++
++        assertThatThrownBy(() -> service.cancel(unknown)).isInstanceOf(OrderNotFoundException.class);
++    }
++}
+diff --git a/src/test/java/com/orderflow/order/domain/OrderCancellationTest.java b/src/test/java/com/orderflow/order/domain/OrderCancellationTest.java
+new file mode 100644
+index 0000000..e6f7bcb
+--- /dev/null
++++ b/src/test/java/com/orderflow/order/domain/OrderCancellationTest.java
+@@ -0,0 +1,103 @@
++package com.orderflow.order.domain;
++
++import com.orderflow.shared.domain.Money;
++import org.junit.jupiter.api.Test;
++
++import java.math.BigDecimal;
++import java.time.Instant;
++import java.util.List;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.assertj.core.api.Assertions.assertThatThrownBy;
++
++/** Cancellation of the Order aggregate, from every status. */
++class OrderCancellationTest {
++
++    private final Order order = Order.create(OrderId.newId(), "c-1",
++            List.of(new OrderLine("p-1", 1, Money.of(new BigDecimal("5.00"), "EUR"))),
++            Instant.parse("2026-10-30T12:00:00Z"));
++
++    @Test
++    void createdOrderCanBeCancelled() {
++        assertThat(order.cancel()).isTrue();
++
++        assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
++    }
++
++    @Test
++    void orderWhosePaymentFailedCanBeCancelled() {
++        order.markPaymentFailed(order.requestPayment());
++
++        assertThat(order.cancel()).isTrue();
++        assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
++    }
++
++    @Test
++    void cancellingAgainChangesNothing() {
++        order.cancel();
++
++        assertThat(order.cancel()).isFalse();
++        assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
++    }
++
++    @Test
++    void orderWithPendingPaymentCannotBeCancelled() {
++        order.requestPayment();
++
++        assertThatThrownBy(order::cancel)
++                .isInstanceOf(InvalidOrderStateException.class)
++                .hasMessageContaining("cannot be cancelled in status PAYMENT_PENDING");
++        assertThat(order.status()).isEqualTo(OrderStatus.PAYMENT_PENDING);
++    }
++
++    @Test
++    void paidOrderCannotBeCancelled() {
++        order.markPaid(order.requestPayment());
++
++        assertThatThrownBy(order::cancel)
++                .isInstanceOf(InvalidOrderStateException.class)
++                .hasMessageContaining("cannot be cancelled in status PAID");
++    }
++
++    @Test
++    void cancelledOrderCannotRequestPayment() {
++        order.cancel();
++
++        assertThatThrownBy(order::requestPayment)
++                .isInstanceOf(InvalidOrderStateException.class)
++                .hasMessageContaining("is cancelled");
++    }
++
++    @Test
++    void lateFailureForACancelledOrderIsIgnored() {
++        PaymentAttemptId attempt = order.requestPayment();
++        order.markPaymentFailed(attempt);
++        order.cancel();
++
++        assertThat(order.markPaymentFailed(attempt)).isFalse();
++        assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
++    }
++
++    @Test
++    void lateSuccessForACancelledOrderIsRejectedForRefund() {
++        PaymentAttemptId attempt = order.requestPayment();
++        order.markPaymentFailed(attempt);
++        order.cancel();
++
++        assertThatThrownBy(() -> order.markPaid(attempt))
++                .isInstanceOf(InvalidOrderStateException.class)
++                .hasMessageContaining("refund required");
++        assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
++    }
++
++    @Test
++    void cancelledOrderIsRestoredWithOrWithoutAnAttempt() {
++        Order withoutAttempt = Order.restore(OrderId.newId(), "c-1", order.lines(), OrderStatus.CANCELLED, null,
++                order.createdAt(), 1);
++        Order withAttempt = Order.restore(OrderId.newId(), "c-1", order.lines(), OrderStatus.CANCELLED,
++                PaymentAttemptId.newId(), order.createdAt(), 2);
++
++        assertThat(withoutAttempt.status()).isEqualTo(OrderStatus.CANCELLED);
++        assertThat(withAttempt.currentPaymentAttempt()).isNotNull();
++    }
++}

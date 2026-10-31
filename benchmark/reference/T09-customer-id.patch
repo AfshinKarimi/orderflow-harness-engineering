@@ -1,0 +1,455 @@
+diff --git a/src/main/java/com/orderflow/order/adapter/out/persistence/OrderMapper.java b/src/main/java/com/orderflow/order/adapter/out/persistence/OrderMapper.java
+index 5ad0270..2d8ff9f 100644
+--- a/src/main/java/com/orderflow/order/adapter/out/persistence/OrderMapper.java
++++ b/src/main/java/com/orderflow/order/adapter/out/persistence/OrderMapper.java
+@@ -1,5 +1,6 @@
+ package com.orderflow.order.adapter.out.persistence;
+ 
++import com.orderflow.order.domain.CustomerId;
+ import com.orderflow.order.domain.Order;
+ import com.orderflow.order.domain.OrderId;
+ import com.orderflow.order.domain.OrderLine;
+@@ -15,7 +16,7 @@ final class OrderMapper {
+     static OrderJpaEntity toEntity(Order order) {
+         return new OrderJpaEntity(
+                 order.id().value(),
+-                order.customerId(),
++                order.customerId().value(),
+                 order.status().name(),
+                 order.currentPaymentAttempt() == null ? null : order.currentPaymentAttempt().value(),
+                 order.currency().getCurrencyCode(),
+@@ -30,7 +31,7 @@ final class OrderMapper {
+     static Order toDomain(OrderJpaEntity entity) {
+         return Order.restore(
+                 new OrderId(entity.getId()),
+-                entity.getCustomerId(),
++                new CustomerId(entity.getCustomerId()),
+                 entity.getLines().stream()
+                         .map(line -> new OrderLine(
+                                 line.getProductId(),
+diff --git a/src/main/java/com/orderflow/order/application/port/in/OrderResult.java b/src/main/java/com/orderflow/order/application/port/in/OrderResult.java
+index 7022b08..63df281 100644
+--- a/src/main/java/com/orderflow/order/application/port/in/OrderResult.java
++++ b/src/main/java/com/orderflow/order/application/port/in/OrderResult.java
+@@ -30,7 +30,7 @@ public record OrderResult(
+                 .toList();
+         return new OrderResult(
+                 order.id().value(),
+-                order.customerId(),
++                order.customerId().value(),
+                 order.status().name(),
+                 order.currency().getCurrencyCode(),
+                 order.total().amount(),
+diff --git a/src/main/java/com/orderflow/order/application/service/CreateOrderService.java b/src/main/java/com/orderflow/order/application/service/CreateOrderService.java
+index 3f2842c..2e27d0d 100644
+--- a/src/main/java/com/orderflow/order/application/service/CreateOrderService.java
++++ b/src/main/java/com/orderflow/order/application/service/CreateOrderService.java
+@@ -5,6 +5,7 @@ import com.orderflow.order.application.port.in.CreateOrderUseCase;
+ import com.orderflow.order.application.port.in.OrderResult;
+ import com.orderflow.order.application.port.out.OrderMetrics;
+ import com.orderflow.order.application.port.out.OrderRepository;
++import com.orderflow.order.domain.CustomerId;
+ import com.orderflow.order.domain.Order;
+ import com.orderflow.order.domain.OrderId;
+ import com.orderflow.order.domain.OrderLine;
+@@ -40,7 +41,7 @@ public class CreateOrderService implements CreateOrderUseCase {
+                         Money.of(line.unitPrice(), command.currency())))
+                 .toList();
+ 
+-        Order order = Order.create(OrderId.newId(), command.customerId(), lines, clock.instant());
++        Order order = Order.create(OrderId.newId(), new CustomerId(command.customerId()), lines, clock.instant());
+         orderRepository.save(order);
+         metrics.orderCreated();
+         return OrderResult.from(order);
+diff --git a/src/main/java/com/orderflow/order/domain/CustomerId.java b/src/main/java/com/orderflow/order/domain/CustomerId.java
+new file mode 100644
+index 0000000..94f6d7d
+--- /dev/null
++++ b/src/main/java/com/orderflow/order/domain/CustomerId.java
+@@ -0,0 +1,16 @@
++package com.orderflow.order.domain;
++
++/** Identifies the customer who placed an order. At most 100 characters (the size of the database column). */
++public record CustomerId(String value) {
++
++    static final int MAX_LENGTH = 100;
++
++    public CustomerId {
++        if (value == null || value.isBlank()) {
++            throw new InvalidOrderException("Customer ID is required");
++        }
++        if (value.length() > MAX_LENGTH) {
++            throw new InvalidOrderException("Customer ID must have at most " + MAX_LENGTH + " characters");
++        }
++    }
++}
+diff --git a/src/main/java/com/orderflow/order/domain/Order.java b/src/main/java/com/orderflow/order/domain/Order.java
+index 1cce11b..ca683df 100644
+--- a/src/main/java/com/orderflow/order/domain/Order.java
++++ b/src/main/java/com/orderflow/order/domain/Order.java
+@@ -16,14 +16,14 @@ import java.util.Objects;
+ public class Order {
+ 
+     private final OrderId id;
+-    private final String customerId;
++    private final CustomerId customerId;
+     private final List<OrderLine> lines;
+     private final Instant createdAt;
+     private final Long version;
+     private OrderStatus status;
+     private PaymentAttemptId currentPaymentAttempt;
+ 
+-    private Order(OrderId id, String customerId, List<OrderLine> lines, OrderStatus status,
++    private Order(OrderId id, CustomerId customerId, List<OrderLine> lines, OrderStatus status,
+                   PaymentAttemptId currentPaymentAttempt, Instant createdAt, Long version) {
+         this.id = id;
+         this.customerId = customerId;
+@@ -34,13 +34,13 @@ public class Order {
+         this.version = version;
+     }
+ 
+-    public static Order create(OrderId id, String customerId, List<OrderLine> lines, Instant createdAt) {
+-        return new Order(Objects.requireNonNull(id, "id"), requireCustomer(customerId), requireLines(lines),
+-                OrderStatus.CREATED, null, Objects.requireNonNull(createdAt, "createdAt"), null);
++    public static Order create(OrderId id, CustomerId customerId, List<OrderLine> lines, Instant createdAt) {
++        return new Order(Objects.requireNonNull(id, "id"), Objects.requireNonNull(customerId, "customerId"),
++                requireLines(lines), OrderStatus.CREATED, null, Objects.requireNonNull(createdAt, "createdAt"), null);
+     }
+ 
+     /** Rebuilds a persisted order. Invariants are checked again, so corrupt data fails loudly. */
+-    public static Order restore(OrderId id, String customerId, List<OrderLine> lines, OrderStatus status,
++    public static Order restore(OrderId id, CustomerId customerId, List<OrderLine> lines, OrderStatus status,
+                                 PaymentAttemptId currentPaymentAttempt, Instant createdAt, long version) {
+         Objects.requireNonNull(status, "status");
+         if ((status == OrderStatus.CREATED) != (currentPaymentAttempt == null)) {
+@@ -48,8 +48,9 @@ public class Order {
+                     "Order in status " + status + " must " + (status == OrderStatus.CREATED ? "not " : "")
+                             + "have a payment attempt");
+         }
+-        return new Order(Objects.requireNonNull(id, "id"), requireCustomer(customerId), requireLines(lines),
+-                status, currentPaymentAttempt, Objects.requireNonNull(createdAt, "createdAt"), version);
++        return new Order(Objects.requireNonNull(id, "id"), Objects.requireNonNull(customerId, "customerId"),
++                requireLines(lines), status, currentPaymentAttempt, Objects.requireNonNull(createdAt, "createdAt"),
++                version);
+     }
+ 
+     /**
+@@ -132,12 +133,6 @@ public class Order {
+                 + " already " + before + " and cannot have " + now);
+     }
+ 
+-    private static String requireCustomer(String customerId) {
+-        if (customerId == null || customerId.isBlank()) {
+-            throw new InvalidOrderException("Customer ID is required");
+-        }
+-        return customerId;
+-    }
+ 
+     private static List<OrderLine> requireLines(List<OrderLine> lines) {
+         if (lines == null || lines.isEmpty()) {
+@@ -165,7 +160,7 @@ public class Order {
+         return id;
+     }
+ 
+-    public String customerId() {
++    public CustomerId customerId() {
+         return customerId;
+     }
+ 
+diff --git a/src/test/java/com/orderflow/LoggingIT.java b/src/test/java/com/orderflow/LoggingIT.java
+index e06c7c1..0b2c298 100644
+--- a/src/test/java/com/orderflow/LoggingIT.java
++++ b/src/test/java/com/orderflow/LoggingIT.java
+@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Logger;
+ import ch.qos.logback.classic.spi.ILoggingEvent;
+ import ch.qos.logback.core.read.ListAppender;
+ import com.orderflow.order.application.port.out.OrderRepository;
++import com.orderflow.order.domain.CustomerId;
+ import com.orderflow.order.domain.Order;
+ import com.orderflow.order.domain.OrderId;
+ import com.orderflow.order.domain.OrderLine;
+@@ -170,7 +171,7 @@ class LoggingIT {
+     }
+ 
+     private static Order newOrder() {
+-        return Order.create(OrderId.newId(), "c-1",
++        return Order.create(OrderId.newId(), new CustomerId("c-1"),
+                 List.of(new OrderLine("p-1", 1, Money.of(new BigDecimal("5.00"), "EUR"))), Instant.now());
+     }
+ 
+diff --git a/src/test/java/com/orderflow/order/adapter/in/event/PaymentResultsListenerIT.java b/src/test/java/com/orderflow/order/adapter/in/event/PaymentResultsListenerIT.java
+index 6fa8a10..8c76162 100644
+--- a/src/test/java/com/orderflow/order/adapter/in/event/PaymentResultsListenerIT.java
++++ b/src/test/java/com/orderflow/order/adapter/in/event/PaymentResultsListenerIT.java
+@@ -6,6 +6,7 @@ import com.orderflow.TestcontainersConfiguration;
+ import com.orderflow.order.application.port.in.HandlePaymentResultUseCase;
+ import com.orderflow.order.application.port.in.HandlePaymentResultUseCase.Outcome;
+ import com.orderflow.order.application.port.out.OrderRepository;
++import com.orderflow.order.domain.CustomerId;
+ import com.orderflow.order.domain.Order;
+ import com.orderflow.order.domain.OrderId;
+ import com.orderflow.order.domain.OrderLine;
+@@ -97,7 +98,7 @@ class PaymentResultsListenerIT {
+ 
+     @BeforeEach
+     void pendingOrder() {
+-        order = Order.create(OrderId.newId(), "c-1",
++        order = Order.create(OrderId.newId(), new CustomerId("c-1"),
+                 List.of(new OrderLine("p-1", 1, Money.of(new BigDecimal("5.00"), "EUR"))), Instant.now());
+         attempt = order.requestPayment();
+         orderRepository.save(order);
+@@ -204,7 +205,7 @@ class PaymentResultsListenerIT {
+ 
+         // A payment result for an order that never requested payment breaks the transition rules
+         // (InvalidOrderStateException). Retrying cannot fix that, so it is dead-lettered on the first failure.
+-        Order created = Order.create(OrderId.newId(), "c-2",
++        Order created = Order.create(OrderId.newId(), new CustomerId("c-2"),
+                 List.of(new OrderLine("p-1", 1, Money.of(BigDecimal.ONE, "EUR"))), Instant.now());
+         orderRepository.save(created);
+         clearInvocations(handlePaymentResult);
+diff --git a/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java b/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java
+index 4de67c4..037f824 100644
+--- a/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java
++++ b/src/test/java/com/orderflow/order/adapter/out/persistence/OrderPersistenceAdapterIT.java
+@@ -1,6 +1,7 @@
+ package com.orderflow.order.adapter.out.persistence;
+ 
+ import com.orderflow.TestcontainersConfiguration;
++import com.orderflow.order.domain.CustomerId;
+ import com.orderflow.order.domain.Order;
+ import com.orderflow.order.domain.OrderId;
+ import com.orderflow.order.domain.OrderLine;
+@@ -39,7 +40,7 @@ class OrderPersistenceAdapterIT {
+     @Test
+     void savedOrderRoundTripsAllFieldsAndLineOrder() {
+         Instant createdAt = Instant.parse("2026-10-30T12:00:00Z");
+-        Order order = Order.create(OrderId.newId(), "c-1", List.of(
++        Order order = Order.create(OrderId.newId(), new CustomerId("c-1"), List.of(
+                 new OrderLine("p-2", 2, Money.of(new BigDecimal("19.99"), "EUR")),
+                 new OrderLine("p-1", 1, Money.of(new BigDecimal("5"), "EUR"))), createdAt);
+ 
+@@ -61,7 +62,7 @@ class OrderPersistenceAdapterIT {
+     @Test
+     void findByIdRestoresTheDomainOrder() {
+         Instant createdAt = Instant.parse("2026-10-30T12:00:00Z");
+-        Order order = Order.create(OrderId.newId(), "c-1", List.of(
++        Order order = Order.create(OrderId.newId(), new CustomerId("c-1"), List.of(
+                 new OrderLine("p-2", 2, Money.of(new BigDecimal("19.99"), "EUR")),
+                 new OrderLine("p-1", 1, Money.of(new BigDecimal("5"), "EUR"))), createdAt);
+         adapter.save(order);
+@@ -71,7 +72,7 @@ class OrderPersistenceAdapterIT {
+         Order restored = adapter.findById(order.id()).orElseThrow();
+ 
+         assertThat(restored.id()).isEqualTo(order.id());
+-        assertThat(restored.customerId()).isEqualTo("c-1");
++        assertThat(restored.customerId()).isEqualTo(new CustomerId("c-1"));
+         assertThat(restored.status()).isEqualTo(order.status());
+         assertThat(restored.createdAt()).isEqualTo(createdAt);
+         assertThat(restored.version()).isZero();
+@@ -124,7 +125,7 @@ class OrderPersistenceAdapterIT {
+     }
+ 
+     private static Order newOrder() {
+-        return Order.create(OrderId.newId(), "c-1",
++        return Order.create(OrderId.newId(), new CustomerId("c-1"),
+                 List.of(new OrderLine("p-1", 1, Money.of(new BigDecimal("5.00"), "EUR"))),
+                 Instant.parse("2026-10-30T12:00:00Z"));
+     }
+diff --git a/src/test/java/com/orderflow/order/application/service/GetOrderServiceTest.java b/src/test/java/com/orderflow/order/application/service/GetOrderServiceTest.java
+index 3e8127b..0e450f3 100644
+--- a/src/test/java/com/orderflow/order/application/service/GetOrderServiceTest.java
++++ b/src/test/java/com/orderflow/order/application/service/GetOrderServiceTest.java
+@@ -2,6 +2,7 @@ package com.orderflow.order.application.service;
+ 
+ import com.orderflow.order.application.port.in.OrderNotFoundException;
+ import com.orderflow.order.application.port.in.OrderResult;
++import com.orderflow.order.domain.CustomerId;
+ import com.orderflow.order.domain.Order;
+ import com.orderflow.order.domain.OrderId;
+ import com.orderflow.order.domain.OrderLine;
+@@ -23,7 +24,7 @@ class GetOrderServiceTest {
+ 
+     @Test
+     void returnsExistingOrder() {
+-        Order order = Order.create(OrderId.newId(), "c-1",
++        Order order = Order.create(OrderId.newId(), new CustomerId("c-1"),
+                 List.of(new OrderLine("p-1", 2, Money.of(new BigDecimal("1.50"), "EUR"))),
+                 Instant.parse("2026-10-30T12:00:00Z"));
+         repository.save(order);
+diff --git a/src/test/java/com/orderflow/order/application/service/HandlePaymentResultServiceTest.java b/src/test/java/com/orderflow/order/application/service/HandlePaymentResultServiceTest.java
+index 19de950..5976d67 100644
+--- a/src/test/java/com/orderflow/order/application/service/HandlePaymentResultServiceTest.java
++++ b/src/test/java/com/orderflow/order/application/service/HandlePaymentResultServiceTest.java
+@@ -5,6 +5,7 @@ import com.orderflow.order.application.port.in.HandlePaymentResultUseCase.Paymen
+ import com.orderflow.order.application.port.in.HandlePaymentResultUseCase.PaymentResultCommand;
+ import com.orderflow.order.application.port.in.OrderNotFoundException;
+ import com.orderflow.order.application.port.out.ProcessedEventStore;
++import com.orderflow.order.domain.CustomerId;
+ import com.orderflow.order.domain.Order;
+ import com.orderflow.order.domain.OrderId;
+ import com.orderflow.order.domain.OrderLine;
+@@ -37,7 +38,7 @@ class HandlePaymentResultServiceTest {
+ 
+     @BeforeEach
+     void pendingOrder() {
+-        order = Order.create(OrderId.newId(), "c-1",
++        order = Order.create(OrderId.newId(), new CustomerId("c-1"),
+                 List.of(new OrderLine("p-1", 1, Money.of(new BigDecimal("5.00"), "EUR"))),
+                 Instant.parse("2026-10-30T12:00:00Z"));
+         attempt = order.requestPayment();
+diff --git a/src/test/java/com/orderflow/order/domain/CustomerIdTest.java b/src/test/java/com/orderflow/order/domain/CustomerIdTest.java
+new file mode 100644
+index 0000000..c36e735
+--- /dev/null
++++ b/src/test/java/com/orderflow/order/domain/CustomerIdTest.java
+@@ -0,0 +1,36 @@
++package com.orderflow.order.domain;
++
++import org.junit.jupiter.api.Test;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.assertj.core.api.Assertions.assertThatThrownBy;
++
++class CustomerIdTest {
++
++    @Test
++    void wrapsTheValue() {
++        assertThat(new CustomerId("c-1").value()).isEqualTo("c-1");
++        assertThat(new CustomerId("c-1")).isEqualTo(new CustomerId("c-1"));
++    }
++
++    @Test
++    void acceptsTheMaximumLength() {
++        assertThat(new CustomerId("c".repeat(100)).value()).hasSize(100);
++    }
++
++    @Test
++    void rejectsMissingOrBlankValues() {
++        for (String blank : new String[] {null, "", "  "}) {
++            assertThatThrownBy(() -> new CustomerId(blank))
++                    .isInstanceOf(InvalidOrderException.class)
++                    .hasMessage("Customer ID is required");
++        }
++    }
++
++    @Test
++    void rejectsValuesLongerThanTheColumn() {
++        assertThatThrownBy(() -> new CustomerId("c".repeat(101)))
++                .isInstanceOf(InvalidOrderException.class)
++                .hasMessage("Customer ID must have at most 100 characters");
++    }
++}
+diff --git a/src/test/java/com/orderflow/order/domain/OrderPaymentTest.java b/src/test/java/com/orderflow/order/domain/OrderPaymentTest.java
+index 6cbbe89..bf13229 100644
+--- a/src/test/java/com/orderflow/order/domain/OrderPaymentTest.java
++++ b/src/test/java/com/orderflow/order/domain/OrderPaymentTest.java
+@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
+ /** Payment transitions of the Order aggregate (ADR-0002 transition table). */
+ class OrderPaymentTest {
+ 
+-    private final Order order = Order.create(OrderId.newId(), "c-1",
++    private final Order order = Order.create(OrderId.newId(), new CustomerId("c-1"),
+             List.of(new OrderLine("p-1", 1, Money.of(new BigDecimal("5.00"), "EUR"))),
+             Instant.parse("2026-10-30T12:00:00Z"));
+ 
+diff --git a/src/test/java/com/orderflow/order/domain/OrderTest.java b/src/test/java/com/orderflow/order/domain/OrderTest.java
+index 2f3a210..a26cf7a 100644
+--- a/src/test/java/com/orderflow/order/domain/OrderTest.java
++++ b/src/test/java/com/orderflow/order/domain/OrderTest.java
+@@ -14,13 +14,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
+ class OrderTest {
+ 
+     private static final Instant NOW = Instant.parse("2026-10-30T12:00:00Z");
++    private static final CustomerId CUSTOMER = new CustomerId("c-1");
+ 
+     @Test
+     void newOrderStartsInCreatedStatus() {
+-        Order order = Order.create(OrderId.newId(), "c-1", List.of(line("p-1", 1, "5.00")), NOW);
++        Order order = Order.create(OrderId.newId(), CUSTOMER, List.of(line("p-1", 1, "5.00")), NOW);
+ 
+         assertThat(order.status()).isEqualTo(OrderStatus.CREATED);
+-        assertThat(order.customerId()).isEqualTo("c-1");
++        assertThat(order.customerId()).isEqualTo(CUSTOMER);
+         assertThat(order.createdAt()).isEqualTo(NOW);
+         assertThat(order.version()).isNull();
+     }
+@@ -30,7 +31,7 @@ class OrderTest {
+         OrderId id = OrderId.newId();
+         PaymentAttemptId attempt = PaymentAttemptId.newId();
+ 
+-        Order order = Order.restore(id, "c-1", List.of(line("p-1", 2, "5.00")), OrderStatus.PAYMENT_PENDING,
++        Order order = Order.restore(id, CUSTOMER, List.of(line("p-1", 2, "5.00")), OrderStatus.PAYMENT_PENDING,
+                 attempt, NOW, 3);
+ 
+         assertThat(order.id()).isEqualTo(id);
+@@ -42,7 +43,7 @@ class OrderTest {
+ 
+     @Test
+     void restoreRejectsCorruptData() {
+-        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", List.of(), OrderStatus.CREATED, null, NOW, 0))
++        assertThatThrownBy(() -> Order.restore(OrderId.newId(), CUSTOMER, List.of(), OrderStatus.CREATED, null, NOW, 0))
+                 .isInstanceOf(InvalidOrderException.class)
+                 .hasMessage("Order must have at least one line");
+     }
+@@ -51,18 +52,18 @@ class OrderTest {
+     void restoreRejectsStatusAndAttemptThatDoNotMatch() {
+         List<OrderLine> lines = List.of(line("p-1", 1, "5.00"));
+ 
+-        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", lines, OrderStatus.CREATED,
++        assertThatThrownBy(() -> Order.restore(OrderId.newId(), CUSTOMER, lines, OrderStatus.CREATED,
+                 PaymentAttemptId.newId(), NOW, 0))
+                 .isInstanceOf(InvalidOrderException.class)
+                 .hasMessage("Order in status CREATED must not have a payment attempt");
+-        assertThatThrownBy(() -> Order.restore(OrderId.newId(), "c-1", lines, OrderStatus.PAID, null, NOW, 0))
++        assertThatThrownBy(() -> Order.restore(OrderId.newId(), CUSTOMER, lines, OrderStatus.PAID, null, NOW, 0))
+                 .isInstanceOf(InvalidOrderException.class)
+                 .hasMessage("Order in status PAID must have a payment attempt");
+     }
+ 
+     @Test
+     void totalIsSumOfLineTotals() {
+-        Order order = Order.create(OrderId.newId(), "c-1",
++        Order order = Order.create(OrderId.newId(), CUSTOMER,
+                 List.of(line("p-1", 2, "19.99"), line("p-2", 1, "0.02")), NOW);
+ 
+         assertThat(order.total()).isEqualTo(eur("40.00"));
+@@ -72,7 +73,7 @@ class OrderTest {
+     @Test
+     void linesCannotBeModifiedFromOutside() {
+         List<OrderLine> lines = new ArrayList<>(List.of(line("p-1", 1, "5.00")));
+-        Order order = Order.create(OrderId.newId(), "c-1", lines, NOW);
++        Order order = Order.create(OrderId.newId(), CUSTOMER, lines, NOW);
+ 
+         lines.add(line("p-2", 1, "1.00"));
+ 
+@@ -83,17 +84,18 @@ class OrderTest {
+ 
+     @Test
+     void rejectsMissingCustomer() {
+-        assertThatThrownBy(() -> Order.create(OrderId.newId(), " ", List.of(line("p-1", 1, "5.00")), NOW))
++        assertThatThrownBy(() -> Order.create(OrderId.newId(), new CustomerId(" "), List.of(line("p-1", 1, "5.00")),
++                NOW))
+                 .isInstanceOf(InvalidOrderException.class)
+                 .hasMessage("Customer ID is required");
+     }
+ 
+     @Test
+     void rejectsOrderWithoutLines() {
+-        assertThatThrownBy(() -> Order.create(OrderId.newId(), "c-1", List.of(), NOW))
++        assertThatThrownBy(() -> Order.create(OrderId.newId(), CUSTOMER, List.of(), NOW))
+                 .isInstanceOf(InvalidOrderException.class)
+                 .hasMessage("Order must have at least one line");
+-        assertThatThrownBy(() -> Order.create(OrderId.newId(), "c-1", null, NOW))
++        assertThatThrownBy(() -> Order.create(OrderId.newId(), CUSTOMER, null, NOW))
+                 .isInstanceOf(InvalidOrderException.class);
+     }
+ 
+@@ -101,7 +103,7 @@ class OrderTest {
+     void rejectsMixedCurrencies() {
+         OrderLine usdLine = new OrderLine("p-2", 1, Money.of(BigDecimal.ONE, "USD"));
+ 
+-        assertThatThrownBy(() -> Order.create(OrderId.newId(), "c-1", List.of(line("p-1", 1, "5.00"), usdLine), NOW))
++        assertThatThrownBy(() -> Order.create(OrderId.newId(), CUSTOMER, List.of(line("p-1", 1, "5.00"), usdLine), NOW))
+                 .isInstanceOf(InvalidOrderException.class)
+                 .hasMessage("All order lines must use the same currency");
+     }
