@@ -1,5 +1,6 @@
 package com.orderflow.architecture;
 
+import com.orderflow.KafkaTestcontainersConfiguration;
 import com.orderflow.TestcontainersConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 // Same annotations as the other @SpringBootTest ITs so the cached context (and its container) is reused.
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, KafkaTestcontainersConfiguration.class})
 class SchemaOwnershipIT {
 
     private static final String FOREIGN_KEYS = """

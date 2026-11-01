@@ -4,6 +4,8 @@ spring:
     url: jdbc:postgresql://localhost:5432/orderflow
     username: orderflow
     password: orderflow
+  kafka:
+    bootstrap-servers: localhost:9092
 
 management:
   endpoint:

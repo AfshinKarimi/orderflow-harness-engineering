@@ -11,6 +11,7 @@ Rationale: [ADR-0001](../adr/0001-modular-monolith-with-hexagonal-architecture.m
 | `order` | Order lifecycle: placing, confirming, cancelling orders |
 | `payment` | Payment lifecycle: requesting, completing, failing payments |
 | `shared` | Shared kernel: small, stable, generic value types only (e.g. `Money`) |
+| `platform.messaging` | Technical module: transactional outbox, Kafka relay, consumer deduplication ([ADR-0003](../adr/0003-transactional-outbox-and-kafka.md)). Public API: `platform.messaging.api` |
 
 ## Package structure
 
@@ -31,7 +32,11 @@ com.orderflow
 │       ├── in.event               listeners for other modules' integration events
 │       ├── out.persistence        JPA entities, Spring Data repositories, mappers
 │       └── out.event              event publisher implementation
-└── payment                        same layout as order
+├── payment                        same layout as order
+└── platform
+    └── messaging
+        ├── api                    OutboxWriter: the only types business modules may use (public API)
+        └── outbox                 JDBC outbox writer, Kafka relay, scheduling, metrics (internal)
 ```
 
 Sub-packages are created when the first class needs them; empty layers are not scaffolded.
@@ -84,21 +89,23 @@ Rules:
 
 7. A module may depend on another module **only** through its public API.
    Another module's `domain`, `application.service`, `application.port.out` and `adapter` packages are off-limits.
+   Business modules may use `platform.messaging.api`, and only from their `adapter` packages (behind their own ports).
 8. Cross-module dependencies originate in `adapter.in` (e.g. an event listener in `payment` that reacts to
    `order` events), never in `domain`.
 9. No dependency cycles between modules.
 10. `shared` depends on no business module. It holds only generic, behaviour-light value types; business rules stay in modules.
 11. Each module owns its data: one PostgreSQL schema per module, no cross-module foreign keys, joins or table access.
+12. Technical `platform` modules depend on no business module (only on `shared` and libraries).
 
-Rules 1–10 are enforced by ArchUnit (`src/test/java/com/orderflow/architecture/ArchitectureTest.java`, one test per rule);
+Rules 1–10 and 12 are enforced by ArchUnit (`src/test/java/com/orderflow/architecture/ArchitectureTest.java`, one test per rule);
 rule 11 partly by `SchemaOwnershipIT` (no cross-schema foreign keys, checked against the real schema);
 cross-schema joins and native SQL remain a code review concern.
 
 ## Communication between modules
 
-- **State changes → integration events** (preferred). Published through a `port.out` publisher;
-  delivered in-process with Spring application events for now, Kafka later. Only the `out.event`
-  adapter changes when we switch.
+- **State changes → integration events** (preferred). Published through a `port.out` publisher whose `out.event`
+  adapter writes to the transactional outbox in the same DB transaction; the relay publishes to Kafka at least once,
+  and consumers deduplicate on `eventId` ([ADR-0003](../adr/0003-transactional-outbox-and-kafka.md)).
 - **Queries / commands that need an immediate answer → `port.in` calls.** Used sparingly, since it couples modules in time.
 
 Integration events are separate from internal domain events: they are a stable contract
@@ -123,5 +130,5 @@ sequenceDiagram
 
 ## Known open points
 
-- **Reliable event delivery:** in-process events are lost if the app crashes after commit but before handling.
-  To be addressed with the Kafka work (likely a transactional outbox), with its own ADR.
+- **Reliable event delivery:** resolved by the transactional outbox (ADR-0003).
+  Remaining: outbox cleanup and retention, a dead-letter strategy, alerting on `orderflow.outbox.pending`.

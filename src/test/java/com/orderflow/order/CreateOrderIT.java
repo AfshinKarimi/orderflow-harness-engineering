@@ -1,5 +1,6 @@
 package com.orderflow.order;
 
+import com.orderflow.KafkaTestcontainersConfiguration;
 import com.orderflow.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** End to end: HTTP → use case → domain → JPA → PostgreSQL (Flyway schema). */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, KafkaTestcontainersConfiguration.class})
 class CreateOrderIT {
 
     @Autowired

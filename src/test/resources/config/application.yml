@@ -1,0 +1,17 @@
+# Test-only overrides. Spring Boot loads classpath:config/application.yml after classpath:application.yml,
+# so these values win without replacing the main configuration.
+orderflow:
+  outbox:
+    relay:
+      # Tests trigger the relay explicitly so outcomes are deterministic.
+      enabled: false
+      send-timeout: 8s
+
+spring:
+  kafka:
+    producer:
+      properties:
+        # Fail fast in the Kafka-outage test.
+        request.timeout.ms: 1000
+        delivery.timeout.ms: 3000
+        max.block.ms: 2000

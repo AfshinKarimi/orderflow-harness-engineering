@@ -6,11 +6,11 @@ AI-assisted order processing platform. Modular monolith following Hexagonal Arch
 - Decisions: [docs/adr](docs/adr)
 
 ## Stack
-Java 21 · Spring Boot 4.1 · Maven (wrapper) · PostgreSQL 17 · Flyway · Testcontainers
+Java 21 · Spring Boot 4.1 · Maven (wrapper) · PostgreSQL 17 · Flyway · Kafka 4.2 (transactional outbox) · Testcontainers
 
 ## Prerequisites
 - JDK 21 (`export JAVA_HOME=$(/usr/libexec/java_home -v 21)` on macOS)
-- Docker (tests start PostgreSQL via Testcontainers)
+- Docker (tests start PostgreSQL and Kafka via Testcontainers)
 
 ## Build and test
 ```bash
@@ -25,18 +25,22 @@ Test naming: `*Test` runs without Spring/Docker (Surefire); `*IT` needs a Spring
 
 ## Run locally
 ```bash
-docker compose up -d          # PostgreSQL on localhost:5432
+docker compose up -d          # PostgreSQL on localhost:5432, Kafka on localhost:9092
 ./mvnw spring-boot:run        # uses the "local" profile by default
 curl localhost:8080/actuator/health
 ```
 
 ## Profiles
-| Profile | Purpose | Database |
+| Profile | Purpose | Database and Kafka |
 |---|---|---|
-| `local` (default) | Developer machine | `compose.yaml` PostgreSQL |
-| `prod` | Deployed environments | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` env vars (required) |
+| `local` (default) | Developer machine | `compose.yaml` PostgreSQL and Kafka |
+| `prod` | Deployed environments | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `KAFKA_BOOTSTRAP_SERVERS` env vars (required) |
 
-Tests don't depend on a profile; Testcontainers supplies the datasource via `@ServiceConnection`.
+Tests run with the default `local` profile, but Testcontainers replaces the database and Kafka connections via
+`@ServiceConnection`. Test-only overrides (outbox relay disabled, short Kafka timeouts) live in
+`src/test/resources/config/application.yml`.
+
+Outbox backlog metric: `orderflow.outbox.pending` (events not yet published to Kafka).
 
 ## API
 | Method | Path | Result |
